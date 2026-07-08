@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "headlesscoder",
+      "runtimeExecutable": "src/HeadlessCoder/bin/Debug/net10.0/win-x64/headlesscoder.exe",
+      "runtimeArgs": ["--port", "8794", "--host", "127.0.0.1"],
+      "port": 8794
+    }
+  ]
+}
