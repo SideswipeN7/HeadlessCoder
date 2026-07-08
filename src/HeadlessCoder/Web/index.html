@@ -18,6 +18,10 @@
         var r = document.documentElement;
         r.dataset.theme = t;
         r.dataset.mode = m;
+        // Re-apply any manual colour overrides for this theme+mode before paint.
+        var custom = JSON.parse(localStorage.getItem("hc-custom") || "{}");
+        var over = custom[t + ":" + m] || {};
+        for (var k in over) if (k.indexOf("--") === 0) r.style.setProperty(k, over[k]);
       } catch (e) {}
     })();
   </script>
@@ -59,6 +63,7 @@
           <option value="obsidian">Obsidian</option>
         </select>
         <button class="mode-toggle" id="modeToggle" aria-label="Toggle light/dark">🌙</button>
+        <button class="mode-toggle" id="customizeBtn" aria-label="Customize colors" title="Customize colors">🎚️</button>
       </div>
 
       <footer class="sidebar-foot muted" id="statusFoot">connecting…</footer>
@@ -131,6 +136,19 @@
       <div class="dialog-actions">
         <button value="cancel" class="btn btn-secondary" type="submit" formnovalidate>Cancel</button>
         <button value="ok" class="btn btn-primary" id="newOkBtn" type="submit">Start</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Manual colour customizer -->
+  <dialog id="customizeDialog" class="dialog">
+    <form method="dialog">
+      <h2>Customize colors</h2>
+      <p class="muted small">Editing <b id="customCtx"></b>. Changes are saved in this browser.</p>
+      <div class="custom-grid" id="customFields"></div>
+      <div class="dialog-actions">
+        <button value="reset" class="btn btn-secondary" id="customReset" type="button">Reset to theme</button>
+        <button value="ok" class="btn btn-primary" type="submit">Done</button>
       </div>
     </form>
   </dialog>

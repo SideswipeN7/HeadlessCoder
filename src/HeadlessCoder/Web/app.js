@@ -38,6 +38,24 @@ window.addEventListener("DOMContentLoaded", () => {
 // ---- Appearance (theme + light/dark) --------------------------------------
 const THEMES = ["claude", "github", "openai", "opencode", "obsidian"];
 
+// Editable colour tokens, shown in the manual customizer.
+const CUSTOM_TOKENS = [
+  { v: "--primary", label: "Primary" },
+  { v: "--primary-active", label: "Primary (active)" },
+  { v: "--canvas", label: "Background" },
+  { v: "--surface-soft", label: "Sidebar" },
+  { v: "--surface-card", label: "Card / bubble" },
+  { v: "--surface-cream-strong", label: "Active item" },
+  { v: "--ink", label: "Heading text" },
+  { v: "--body", label: "Body text" },
+  { v: "--muted", label: "Muted text" },
+  { v: "--hairline", label: "Border" },
+  { v: "--accent-teal", label: "Accent" },
+  { v: "--success", label: "Success" },
+  { v: "--error", label: "Error" },
+  { v: "--surface-dark", label: "Code panel" },
+];
+
 function initAppearance() {
   const root = document.documentElement;
   let theme = root.dataset.theme;
@@ -50,6 +68,9 @@ function initAppearance() {
     applyAppearance(e.target.value, currentMode(), true));
   $("modeToggle").addEventListener("click", () =>
     applyAppearance(currentTheme(), currentMode() === "dark" ? "light" : "dark", true));
+
+  $("customizeBtn").addEventListener("click", openCustomizeDialog);
+  $("customReset").addEventListener("click", resetCustom);
 }
 
 function currentTheme() { return document.documentElement.dataset.theme || "claude"; }
@@ -59,6 +80,7 @@ function applyAppearance(theme, mode, persist) {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.dataset.mode = mode;
+  applyOverrides(theme, mode);
   $("modeToggle").textContent = mode === "dark" ? "☀️" : "🌙";
   $("modeToggle").title = mode === "dark" ? "Switch to light" : "Switch to dark";
   // Keep the browser chrome colour in step with the canvas.
@@ -71,6 +93,89 @@ function applyAppearance(theme, mode, persist) {
       localStorage.setItem("hc-mode", mode);
     } catch (e) { /* ignore */ }
   }
+}
+
+// ---- Manual colour overrides ----------------------------------------------
+function loadCustom() {
+  try { return JSON.parse(localStorage.getItem("hc-custom") || "{}"); }
+  catch { return {}; }
+}
+function saveCustom(obj) {
+  try { localStorage.setItem("hc-custom", JSON.stringify(obj)); } catch { /* ignore */ }
+}
+function customKey() { return currentTheme() + ":" + currentMode(); }
+
+// Clear any inline overrides, then apply the saved set for this theme+mode.
+function applyOverrides(theme, mode) {
+  const root = document.documentElement;
+  for (const t of CUSTOM_TOKENS) root.style.removeProperty(t.v);
+  const over = loadCustom()[theme + ":" + mode] || {};
+  for (const k of Object.keys(over))
+    if (k.indexOf("--") === 0) root.style.setProperty(k, over[k]);
+}
+
+function openCustomizeDialog() {
+  const wrap = $("customFields");
+  wrap.innerHTML = "";
+  const cs = getComputedStyle(document.documentElement);
+
+  for (const tok of CUSTOM_TOKENS) {
+    const cur = toHex(cs.getPropertyValue(tok.v).trim());
+    const field = document.createElement("label");
+    field.className = "custom-field";
+    field.innerHTML = `<input type="color" value="${cur}" /><span></span>`;
+    field.querySelector("span").textContent = tok.label;
+    const input = field.querySelector("input");
+    input.addEventListener("input", () => setCustomVar(tok.v, input.value));
+    wrap.appendChild(field);
+  }
+
+  $("customCtx").textContent = `${agentThemeName(currentTheme())} · ${currentMode()}`;
+  $("customizeDialog").showModal();
+}
+
+function setCustomVar(name, value) {
+  document.documentElement.style.setProperty(name, value);
+  const all = loadCustom();
+  const key = customKey();
+  all[key] = all[key] || {};
+  all[key][name] = value;
+  saveCustom(all);
+  // Keep the browser chrome colour synced if the background was edited.
+  if (name === "--canvas") {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", value);
+  }
+}
+
+function resetCustom() {
+  const all = loadCustom();
+  delete all[customKey()];
+  saveCustom(all);
+  applyOverrides(currentTheme(), currentMode());
+  openCustomizeDialog(); // repopulate inputs from the base theme values
+}
+
+function agentThemeName(id) {
+  return ({ claude: "Claude", github: "GitHub", openai: "OpenAI", opencode: "opencode", obsidian: "Obsidian" })[id] || id;
+}
+
+// Parse #hex / rgb() / rgba() into a 6-digit #hex the color input accepts.
+function toHex(str) {
+  if (!str) return "#888888";
+  str = str.trim();
+  if (str[0] === "#") {
+    if (str.length === 4) // #abc -> #aabbcc
+      return "#" + str.slice(1).split("").map((c) => c + c).join("");
+    return str.slice(0, 7);
+  }
+  const m = str.match(/rgba?\(([^)]+)\)/i);
+  if (m) {
+    const p = m[1].split(",").map((x) => parseFloat(x.trim()));
+    const h = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+    return "#" + h(p[0]) + h(p[1]) + h(p[2]);
+  }
+  return "#888888";
 }
 
 function setGroupMode(mode) {

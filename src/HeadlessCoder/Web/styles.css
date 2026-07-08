@@ -426,6 +426,27 @@ body {
 .field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 
+/* Colour customizer */
+.custom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin-top: 8px;
+  max-height: 52vh;
+  overflow: auto;
+}
+.custom-field { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--body); }
+.custom-field input[type="color"] {
+  width: 30px; height: 26px;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--canvas);
+  cursor: pointer;
+  flex: none;
+}
+.custom-field span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .empty { padding: 24px 10px; text-align: center; font-size: 14px; }
 
 /* ---- Responsive (phone-first is the point of this app) ------------------ */
@@ -438,4 +459,5 @@ body {
   .back-btn { display: inline-flex; }
   .chat-title { font-size: 18px; }
   .cwd-chip { max-width: 100%; margin-left: 0; }
+  .custom-grid { grid-template-columns: 1fr; }
 }

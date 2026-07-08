@@ -112,6 +112,12 @@ Use the palette control at the bottom of the sidebar to switch the **UI style** 
 **light/dark**. Both are stored per-browser in `localStorage` (`hc-theme`, `hc-mode`) and
 re-applied before the page paints, so a phone that opened the UI once keeps its look.
 
+**Custom colors.** The 🎚️ button opens a color editor: tweak any of the core tokens
+(primary, background, text, borders, accents, …) with live preview. Edits are scoped to the
+current style + light/dark combination and saved per-browser (`hc-custom`), so each theme can
+carry its own tweaks; **Reset to theme** clears them. Custom overrides are also re-applied
+before first paint (no flash).
+
 Each style is a set of CSS variables in `Web/themes.css`, selected by `data-theme` +
 `data-mode` on `<html>`; palettes are derived from the `*-DESIGN.md` reference docs. To add a
 style, append a `:root[data-theme="mystyle"]` block (with `[data-mode="light"]`/`[dark]`
