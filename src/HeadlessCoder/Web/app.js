@@ -529,13 +529,22 @@ async function openSession(sess) {
   $("chatSub").textContent = `${agentName(sess.provider)} · ${shortenPath(sess.cwd)}`;
   $("cwdChip").textContent = shortenPath(sess.cwd);
   $("composer").hidden = false;
-  $("privateBadge").hidden = !sess.private;
-  $("shareBtn").hidden = !sess.id || !!sess.private;  // private sessions aren't shareable
-  $("renameBtn").hidden = !sess.id || !!sess.private; // rename saved (non-private) sessions
-  $("minimizeBtn").hidden = !sess.private;            // minimize is for in-private sessions
   if (sess.private && sess.id) state.privateIds.add(sess.id);
+  updateSessionButtons();
   app.classList.add("show-chat");
   await loadTranscript(sess);
+}
+
+// Topbar button visibility:
+//   rename / share -> the selected (open) session, once it has an id
+//   minimize       -> in-private sessions only
+function updateSessionButtons() {
+  const s = state.current;
+  const hasId = !!(s && s.id);
+  $("renameBtn").hidden = !hasId;
+  $("shareBtn").hidden = !hasId;
+  $("minimizeBtn").hidden = !(s && s.private);
+  $("privateBadge").hidden = !(s && s.private);
 }
 
 // ---- In-private minimize ---------------------------------------------------
@@ -592,9 +601,7 @@ function purgePrivate(sess) {
 function clearMainView() {
   state.current = null;
   $("composer").hidden = true;
-  $("shareBtn").hidden = true;
-  $("minimizeBtn").hidden = true;
-  $("privateBadge").hidden = true;
+  updateSessionButtons();   // no session -> hide rename/share/minimize + badge
   $("chatTitle").textContent = "Select a session";
   $("chatSub").textContent = "";
   markActive();
@@ -608,7 +615,7 @@ function clearMainView() {
 // ---- Rename session --------------------------------------------------------
 function openRename() {
   const s = state.current;
-  if (!s || !s.id || s.private) return;
+  if (!s || !s.id) return;
   $("renameInput").value = s.title || "";
   $("renameDialog").showModal();
   setTimeout(() => $("renameInput").select(), 50);
@@ -808,6 +815,7 @@ function handleSse(frame) {
         if (meta.isNew) state.current.id = meta.sessionId;
         if (meta.provider) state.current.provider = meta.provider;
         if (state.current.private) state.privateIds.add(meta.sessionId);
+        updateSessionButtons();   // reveal rename/share once the new session has an id
       }
     } catch { /* ignore */ }
     return;
