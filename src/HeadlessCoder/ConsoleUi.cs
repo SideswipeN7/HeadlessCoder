@@ -1,4 +1,5 @@
 using System.Text;
+using HeadlessCoder.Agents;
 using QRCoder;
 
 namespace HeadlessCoder;
@@ -13,6 +14,8 @@ public static class ConsoleUi
     private const string Coral = "[38;2;204;120;92m";   // #cc785c
     private const string Cream = "[38;2;250;249;245m";  // #faf9f5
     private const string Muted = "[38;2;140;138;130m";  // #8c8a82
+    private const string Green = "\x1b[38;2;93;184;114m";   // #5db872
+    private const string Amber = "\x1b[38;2;232;165;90m";   // #e8a55a
     private const string Bold = "[1m";
 
     static ConsoleUi()
@@ -23,7 +26,7 @@ public static class ConsoleUi
     public static void PrintBanner()
     {
         Console.WriteLine();
-        Console.WriteLine($"{Coral}{Bold}  ✳  HeadlessCoder{Reset}{Muted}  ·  manage Claude Code from anywhere on your LAN{Reset}");
+        Console.WriteLine($"{Coral}{Bold}  ✳  HeadlessCoder{Reset}{Muted}  ·  manage your coding agents from anywhere on your LAN{Reset}");
         Console.WriteLine();
     }
 
@@ -51,6 +54,47 @@ public static class ConsoleUi
     /// Light modules render as blocks and dark modules as spaces, which scans reliably
     /// on the dark terminals most people use.
     /// </summary>
+    /// <summary>
+    /// Prints the startup preflight: which agent CLIs were detected, and what the
+    /// user must do to enable the ones that are missing or half-configured.
+    /// </summary>
+    public static void PrintDoctor(DoctorReport report)
+    {
+        Console.WriteLine($"{Cream}  Preflight — agent CLIs on this machine:{Reset}");
+        foreach (var a in report.Agents)
+        {
+            (string glyph, string color) = a.Status switch
+            {
+                "ready" => ("✓", Green),
+                "partial" => ("●", Amber),
+                _ => ("○", Muted),
+            };
+
+            var detail = new StringBuilder();
+            if (a.Installed)
+            {
+                detail.Append(a.Version is { Length: > 0 } v ? v : "installed");
+                if (a.SupportsHistory && a.SessionCount > 0)
+                    detail.Append($"  ·  {a.SessionCount} sessions");
+            }
+            else
+            {
+                detail.Append("not installed");
+            }
+
+            Console.WriteLine($"    {color}{glyph}{Reset} {Cream}{a.DisplayName}{Reset} {Muted}— {detail}{Reset}");
+            if (!string.IsNullOrWhiteSpace(a.Remediation))
+                Console.WriteLine($"        {Muted}↳ {a.Remediation}{Reset}");
+        }
+
+        if (!report.AnyAgentAvailable)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"  {Amber}{Bold}⚠ No agent CLI detected.{Reset} {Muted}Install at least one (see hints above) before use.{Reset}");
+        }
+        Console.WriteLine();
+    }
+
     public static void PrintQr(string content)
     {
         using var generator = new QRCodeGenerator();

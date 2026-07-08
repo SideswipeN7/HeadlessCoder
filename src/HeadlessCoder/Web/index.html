@@ -21,6 +21,13 @@
         <span class="plus">+</span> New session
       </button>
 
+      <div class="group-toggle" id="groupToggle" role="tablist" aria-label="Group sessions by">
+        <button class="seg active" data-mode="recent" role="tab">Recent</button>
+        <button class="seg" data-mode="agent" role="tab">By agent</button>
+      </div>
+
+      <div id="doctorNote" class="doctor-note" hidden></div>
+
       <div class="sidebar-scroll" id="sessionList">
         <div class="empty muted">Loading sessions…</div>
       </div>
@@ -82,6 +89,10 @@
   <dialog id="newDialog" class="dialog">
     <form method="dialog" id="newForm">
       <h2>New session</h2>
+      <label class="field">
+        <span>Agent</span>
+        <select id="newAgent"></select>
+      </label>
       <label class="field">
         <span>Working directory</span>
         <input list="projectPaths" id="newCwd" placeholder="E:\path\to\project" autocomplete="off" />

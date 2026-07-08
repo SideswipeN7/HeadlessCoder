@@ -76,7 +76,7 @@ public sealed class CommandLineOptions
 
     public static string HelpText =>
         """
-        HeadlessCoder - manage multiple Claude Code sessions from your phone or any device on your LAN.
+        HeadlessCoder - manage your coding-agent CLIs (Claude Code, Gemini, Copilot) from your phone or any device on your LAN.
 
         Usage:
           headlesscoder [options]

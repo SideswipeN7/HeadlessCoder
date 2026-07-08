@@ -7,7 +7,7 @@ public sealed record ProjectInfo(
     int SessionCount,
     DateTimeOffset? LastActivity);
 
-/// <summary>Summary of a single Claude Code session (one .jsonl transcript).</summary>
+/// <summary>Summary of a single agent session (one transcript).</summary>
 public sealed record SessionSummary(
     string Id,
     string ProjectId,
@@ -15,7 +15,8 @@ public sealed record SessionSummary(
     string Title,
     string? GitBranch,
     int MessageCount,
-    DateTimeOffset? LastActivity);
+    DateTimeOffset? LastActivity,
+    string Provider = "claude");
 
 /// <summary>A single rendered message inside a transcript.</summary>
 public sealed record TranscriptMessage(
@@ -27,6 +28,9 @@ public sealed record TranscriptMessage(
 /// <summary>Request body for sending a message to a (possibly new) session.</summary>
 public sealed class SendMessageRequest
 {
+    /// <summary>Which agent CLI to use: "claude" | "gemini" | "copilot".</summary>
+    public string Provider { get; set; } = "claude";
+
     public string? SessionId { get; set; }
 
     /// <summary>

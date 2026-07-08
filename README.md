@@ -1,44 +1,70 @@
 # ✳ HeadlessCoder
 
-Manage multiple **Claude Code** sessions from your phone — or any device on your LAN.
+Drive your coding-agent CLIs — **Claude Code**, **Gemini CLI**, **Copilot CLI** — from your
+phone, or any device on your LAN.
 
-HeadlessCoder runs on the machine where Claude Code lives, serves a small web UI, and
-prints a **URL + QR code** in the console. Scan it from your phone and you get a warm,
-Anthropic-styled interface to browse every Claude Code session on the machine, resume
-any of them, and start new ones — with live streaming responses.
+HeadlessCoder runs on the machine where your agent CLIs live, serves a small web UI, and
+prints a **URL + QR code** in the console. On startup it runs a **preflight** that detects
+which agents are installed and tells you exactly what to install/set up for the ones that
+aren't. Scan the QR from your phone and you get a warm, editorial interface to browse every
+session on the machine, resume Claude sessions, and start new ones on any agent — with live
+streaming responses.
 
 ```
-  ✳  HeadlessCoder  ·  manage Claude Code from anywhere on your LAN
+  ✳  HeadlessCoder  ·  manage your coding agents from anywhere on your LAN
+
+  Preflight — agent CLIs on this machine:
+    ✓ Claude Code — 2.1.198 (Claude Code)  ·  14 sessions
+    ○ Gemini CLI — not installed
+        ↳ Install with `npm install -g @google/gemini-cli`, then run `gemini` once to authenticate.
+    ○ Copilot CLI — not installed
+        ↳ Install with `npm install -g @github/copilot`, then run `copilot` once and `/login`.
 
   Open this on your phone or any device on the same network:
       http://192.168.100.1:8787/hc
 
   █████████████████████████████████████
   ██████ ▄▄▄▄▄ ██▄▄ ▄▄▄▀██ ▄▄▄▄▄ ██████
-  ██████ █   █ █ ▀  ▄▀██▀█ █   █ ██████
   ...
 ```
 
 ## Features
 
+- **Multi-agent.** Provider abstraction over multiple agent CLIs. Detects each one and
+  routes messages to it. Claude Code is fully wired (history + resume + streaming + tools);
+  Gemini/Copilot run as one-shot headless prompts with streamed output.
+- **Startup preflight / doctor.** Reports which agent CLIs are installed, their versions and
+  session counts, and precise remediation for anything missing — in the console *and* the UI.
 - **All your sessions, everywhere.** Reads Claude Code's on-disk transcripts
-  (`~/.claude/projects`) and lists every session, grouped by project, with titles,
-  branch, message count and last-activity time.
-- **Resume or start fresh.** Open any existing session and keep the conversation going,
-  or spin up a new session in any working directory on the host.
-- **Live streaming.** Responses stream token-by-token over Server-Sent Events, including
-  tool calls and results.
-- **Console QR + LAN URL.** Auto-detects your machine's LAN IPv4 and renders a scannable
-  QR code straight in the terminal.
-- **Keep-awake.** Launch with `--no-sleep` / `-ns` to stop the host from sleeping while
-  it's serving (Windows / macOS / Linux).
+  (`~/.claude/projects`) and lists every session with title, branch, message count and
+  last-activity time. Group them **by most recent** or **by agent**.
+- **Resume or start fresh.** Open any existing session and keep going, or spin up a new one
+  on any installed agent in any working directory on the host.
+- **Live streaming.** Responses stream token-by-token over Server-Sent Events (normalized so
+  the UI is agent-agnostic), including tool calls and results.
+- **Console QR + LAN URL.** Auto-detects your machine's LAN IPv4 and renders a scannable QR
+  code straight in the terminal.
+- **Keep-awake.** Launch with `--no-sleep` / `-ns` to stop the host from sleeping while it's
+  serving (Windows / macOS / Linux).
 - **Single file.** Ships as one self-contained executable — no runtime install required.
 - **Warm by design.** UI built to Anthropic's cream + coral editorial design system.
 
+## Supported agents
+
+| Agent | Detect | History / resume | Send message |
+|-------|:------:|:----------------:|--------------|
+| **Claude Code** (`claude`) | ✅ | ✅ reads `~/.claude/projects`, resumes by id | ✅ `claude --print --output-format stream-json` |
+| **Gemini CLI** (`gemini`) | ✅ | — | ✅ one-shot `gemini --prompt` (stdout streamed) |
+| **Copilot CLI** (`copilot`) | ✅ | — | ✅ one-shot `copilot --prompt` (stdout streamed) |
+
+Adding another agent is a matter of implementing `IAgentProvider` (or subclassing
+`GenericCliProvider`) and registering it — see `src/HeadlessCoder/Agents/`.
+
 ## Requirements
 
-- The [Claude Code](https://claude.com/claude-code) CLI installed and authenticated on
-  the host machine (`claude` on the `PATH`, or `~/.local/bin`).
+- At least one supported agent CLI installed and authenticated on the host machine
+  (on `PATH`, or a common location like `~/.local/bin`). The preflight tells you what's
+  missing and how to fix it.
 - To build from source: the [.NET SDK](https://dotnet.microsoft.com/download) (10.0+).
 
 ## Run
@@ -96,38 +122,62 @@ The resulting `headlesscoder[.exe]` is the only file you need to run.
 
 ```
  phone / laptop                host machine
- ┌───────────┐   HTTP/SSE   ┌──────────────────────────────┐
- │  web UI   │ ───────────► │  HeadlessCoder (ASP.NET Core) │
- │  (/hc)    │ ◄─────────── │   • reads ~/.claude/projects  │
- └───────────┘   stream     │   • spawns `claude --print`   │
-                            │       --output-format         │
-                            │        stream-json --resume   │
-                            └──────────────┬────────────────┘
-                                           ▼
-                                      Claude Code CLI
+ ┌───────────┐   HTTP/SSE   ┌───────────────────────────────────┐
+ │  web UI   │ ───────────► │  HeadlessCoder (ASP.NET Core)      │
+ │  (/hc)    │ ◄─────────── │   AgentRegistry                    │
+ └───────────┘  normalized  │    ├─ ClaudeProvider  ── claude    │
+                  events     │    ├─ GeminiProvider  ── gemini    │
+                            │    └─ CopilotProvider ── copilot   │
+                            └───────────────┬───────────────────┘
+                                            ▼
+                                    agent CLI process
 ```
 
-- **Listing** parses the JSONL transcripts under `~/.claude/projects` directly.
-- **Messaging** spawns the `claude` CLI in headless streaming mode
-  (`--print --output-format stream-json --include-partial-messages`), assigning a fresh
-  `--session-id` for new sessions or `--resume`-ing existing ones, and relays each event
-  to the browser as SSE.
+- **Preflight** — each provider's `Detect()` locates its executable, probes `--version`,
+  checks its config/session store, and reports status + remediation. Aggregated into a
+  `DoctorReport` shown in the console and at `GET /api/agents`.
+- **Listing** — `ClaudeProvider` parses the JSONL transcripts under `~/.claude/projects`.
+  Providers without a readable history contribute nothing to the list (by design).
+- **Messaging** — the chosen provider spawns its CLI and emits **normalized `AgentEvent`s**
+  (`text_delta`, `assistant`, `tool`, `tool_result`, `result`, `error`) so the UI never
+  needs to know a CLI's native output format. Claude is driven with
+  `--print --output-format stream-json --include-partial-messages`, a fresh `--session-id`
+  for new sessions or `--resume` for existing ones; generic CLIs get `--prompt` and their
+  stdout is streamed as text.
+
+### Adding an agent
+
+Implement `IAgentProvider` (or subclass `GenericCliProvider` for a one-shot CLI) in
+`src/HeadlessCoder/Agents/`, then register it in `Program.cs`:
+
+```csharp
+builder.Services.AddSingleton<IAgentProvider, MyAgentProvider>();
+```
 
 ## Security note
 
 HeadlessCoder serves on your LAN with **no authentication**, and anyone who can reach the
-URL can drive Claude Code on your machine (including running tools). Only run it on trusted
-networks. A future version may add a pairing token.
+URL can drive your agent CLIs on your machine (including running tools). Only run it on
+trusted networks. A future version may add a pairing token.
 
 ## Project layout
 
 ```
 src/HeadlessCoder/
-  Program.cs                 # host + HTTP/SSE endpoints
+  Program.cs                 # host + HTTP/SSE endpoints, provider registration
   CommandLineOptions.cs      # arg parsing (--no-sleep, --port, ...)
-  ConsoleUi.cs               # banner, LAN URL, terminal QR code
+  ConsoleUi.cs               # banner, preflight/doctor, LAN URL, terminal QR
   Networking/NetworkHelper   # LAN IPv4 discovery
   Platform/SleepPreventer    # cross-platform keep-awake
+  Agents/
+    IAgentProvider.cs        # the agent-backend contract
+    AgentModels.cs           # AgentEvent, AgentDescriptor, DoctorReport
+    AgentRegistry.cs         # detection + session aggregation + routing
+    Cli.cs                   # locate executables, probe versions
+    ClaudeProvider.cs        # full Claude Code backend (maps stream-json)
+    GenericCliProvider.cs    # base for one-shot prompt CLIs
+    GeminiProvider.cs        # Gemini CLI
+    CopilotProvider.cs       # Copilot CLI
   Claude/
     ClaudeSessionStore.cs    # read/parse ~/.claude/projects transcripts
     ClaudeCliRunner.cs       # spawn claude, stream stream-json
