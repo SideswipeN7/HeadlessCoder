@@ -270,6 +270,33 @@ body {
 .chat-sub { font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .back-btn { display: none; font-size: 26px; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.chat-title { display: flex; align-items: center; gap: 8px; }
+.private-badge {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
+  color: var(--on-primary); background: var(--primary);
+  border-radius: var(--r-pill); padding: 2px 8px; flex: none;
+}
+
+/* Minimized in-private sessions */
+.minimized-bar {
+  position: fixed; left: 16px; bottom: 16px; z-index: 40;
+  display: flex; flex-direction: column; gap: 8px; max-width: 280px;
+}
+.min-pill {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface-dark); color: var(--on-dark);
+  border: 1px solid var(--hairline); border-radius: var(--r-pill);
+  padding: 8px 12px; cursor: pointer; font: inherit; font-size: 13px;
+  box-shadow: 0 6px 18px var(--shadow); max-width: 280px;
+}
+.min-pill .min-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.min-pill .min-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex: none; }
+.min-pill .min-close { color: var(--on-dark-soft); flex: none; padding: 0 2px; }
+.min-pill .min-close:hover { color: var(--on-dark); }
+
+/* Checkbox row */
+.check { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--body); cursor: pointer; }
+.check input { margin-top: 2px; flex: none; }
 
 .transcript {
   flex: 1;
@@ -336,15 +363,25 @@ body {
   max-width: min(760px, 100%);
   overflow: hidden;
 }
-.tool .tool-name { color: var(--accent-teal); }
+.tool-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.tool .tool-name { color: var(--accent-teal); font-weight: 600; flex: none; }
+.tool .tool-summary {
+  color: var(--on-dark-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
 .tool pre {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--on-dark-soft);
-  max-height: 220px;
+  max-height: 260px;
   overflow: auto;
+  line-height: 1.5;
 }
+.tool.result .tool-name { color: var(--muted-soft); }
 
 .result-line {
   align-self: center;

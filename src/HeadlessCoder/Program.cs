@@ -38,6 +38,11 @@ builder.Services.AddSingleton<IAgentProvider>(sp =>
     new ClaudeProvider(sp.GetRequiredService<ClaudeSessionStore>(), sp.GetRequiredService<ClaudeCliRunner>()));
 builder.Services.AddSingleton<IAgentProvider, GeminiProvider>();
 builder.Services.AddSingleton<IAgentProvider, CopilotProvider>();
+builder.Services.AddSingleton<IAgentProvider, CodexProvider>();
+builder.Services.AddSingleton<IAgentProvider, OpencodeProvider>();
+builder.Services.AddSingleton<IAgentProvider, CursorProvider>();
+builder.Services.AddSingleton<IAgentProvider, AiderProvider>();
+builder.Services.AddSingleton<IAgentProvider, QwenProvider>();
 builder.Services.AddSingleton<AgentRegistry>(sp =>
     new AgentRegistry(sp.GetServices<IAgentProvider>()));
 
@@ -116,6 +121,7 @@ app.MapGet("/api/health", (AgentRegistry reg) => Results.Json(new
     anyAgent = reg.Diagnose().AnyAgentAvailable,
     auth = authEnabled,
     freeStyle = options.FreeStyle,
+    noHistory = options.NoHistory,
 }, jsonOpts));
 
 // Preflight / doctor: what's installed and what to do about what isn't.
@@ -123,11 +129,15 @@ app.MapGet("/api/agents", (AgentRegistry reg) => Results.Json(reg.Diagnose().Age
 
 // Distinct working directories for the new-session picker.
 app.MapGet("/api/projects", (AgentRegistry reg) =>
-    Results.Json(reg.ListWorkingDirectories().Select(p => new { path = p }), jsonOpts));
+    Results.Json(options.NoHistory
+        ? Enumerable.Empty<object>()
+        : reg.ListWorkingDirectories().Select(p => new { path = p }), jsonOpts));
 
 // All sessions across every agent (optionally filtered to one provider).
 app.MapGet("/api/sessions", (AgentRegistry reg, string? provider) =>
 {
+    if (options.NoHistory)
+        return Results.Json(Array.Empty<object>(), jsonOpts);
     var all = reg.ListAllSessions();
     if (!string.IsNullOrWhiteSpace(provider))
         all = all.Where(s => string.Equals(s.Provider, provider, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -136,6 +146,8 @@ app.MapGet("/api/sessions", (AgentRegistry reg, string? provider) =>
 
 app.MapGet("/api/sessions/{provider}/{project}/{id}", (AgentRegistry reg, string provider, string project, string id) =>
 {
+    if (options.NoHistory)
+        return Results.Json(Array.Empty<object>(), jsonOpts);
     var p = reg.Get(provider);
     return p is null
         ? Results.NotFound($"Unknown agent '{provider}'.")

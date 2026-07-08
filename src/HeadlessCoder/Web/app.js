@@ -10,7 +10,9 @@ const state = {
   sessions: [],       // cached last session list
   groupMode: "recent", // "recent" | "agent"
   collapsed: new Set(), // collapsed group keys
-  config: {}           // { auth, freeStyle } from /api/health
+  config: {},          // { auth, freeStyle, noHistory } from /api/health
+  privateIds: new Set(), // in-private session ids (kept out of the list)
+  minimized: []        // minimized in-private sessions
 };
 
 const $ = (id) => document.getElementById(id);
@@ -34,6 +36,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   $("gearBtn").addEventListener("click", () => openSettings());
   $("shareBtn").addEventListener("click", shareCurrent);
+  $("minimizeBtn").addEventListener("click", minimizeCurrent);
   $("agentsRefresh").addEventListener("click", refreshAgents);
   for (const tab of document.querySelectorAll("#settingsTabs .tab"))
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
@@ -293,7 +296,6 @@ async function loadAgents() {
   } catch {
     state.agents = [];
   }
-  renderDoctor();
   renderAgentPicker();
   renderStatusFoot();
 }
@@ -307,23 +309,6 @@ function renderStatusFoot() {
   $("statusFoot").textContent = ready.length
     ? `agents: ${ready.join(", ")}`
     : "⚠ no agent CLI detected";
-}
-
-function renderDoctor() {
-  const note = $("doctorNote");
-  const missing = state.agents.filter((a) => !a.installed);
-  const partial = state.agents.filter((a) => a.installed && a.status === "partial");
-  if (!missing.length && !partial.length) { note.hidden = true; return; }
-
-  const rows = [];
-  if (!installedAgents().length) {
-    rows.push(`<b>No agent CLI found.</b> Install at least one:`);
-  }
-  for (const a of [...partial, ...missing]) {
-    rows.push(`• <b>${escapeHtml(a.displayName)}</b> — ${escapeHtml(a.remediation || (a.installed ? "needs setup" : "not installed"))}`);
-  }
-  note.innerHTML = rows.join("<br/>");
-  note.hidden = false;
 }
 
 function renderAgentPicker() {
@@ -360,8 +345,12 @@ async function loadSessions() {
 
 function renderSessions(sessions) {
   const list = $("sessionList");
-  if (!sessions || !sessions.length) {
-    list.innerHTML = `<div class="empty muted">No sessions yet.<br/>Start a new one above.</div>`;
+  // In-private sessions never appear in the list.
+  sessions = (sessions || []).filter((s) => !state.privateIds.has(s.id));
+  if (!sessions.length) {
+    list.innerHTML = state.config.noHistory
+      ? `<div class="empty muted">History is off (--no-history).<br/>Start a new session above.</div>`
+      : `<div class="empty muted">No sessions yet.<br/>Start a new one above.</div>`;
     return;
   }
   list.innerHTML = "";
@@ -445,9 +434,61 @@ async function openSession(sess) {
   $("chatSub").textContent = `${agentName(sess.provider)} · ${shortenPath(sess.cwd)}`;
   $("cwdChip").textContent = shortenPath(sess.cwd);
   $("composer").hidden = false;
-  $("shareBtn").hidden = !sess.id;   // only saved sessions have a stable link
+  $("privateBadge").hidden = !sess.private;
+  $("shareBtn").hidden = !sess.id || !!sess.private;  // private sessions aren't shareable
+  $("minimizeBtn").hidden = !sess.private;            // minimize is for in-private sessions
+  if (sess.private && sess.id) state.privateIds.add(sess.id);
   app.classList.add("show-chat");
   await loadTranscript(sess);
+}
+
+// ---- In-private minimize ---------------------------------------------------
+function minimizeCurrent() {
+  const s = state.current;
+  if (!s) return;
+  if (!state.minimized.some((m) => m.id === s.id && m.provider === s.provider))
+    state.minimized.push(s);
+  renderMinimized();
+  clearMainView();
+}
+
+function renderMinimized() {
+  const bar = $("minimizedBar");
+  bar.innerHTML = "";
+  for (const m of state.minimized) {
+    const pill = document.createElement("div");
+    pill.className = "min-pill";
+    pill.innerHTML = `<span class="min-dot"></span><span class="min-title"></span><span class="min-close" title="Close">✕</span>`;
+    pill.querySelector(".min-title").textContent = m.title || "Private session";
+    pill.addEventListener("click", (e) => {
+      if (e.target.classList.contains("min-close")) restoreMinimized(m, false);
+      else restoreMinimized(m, true);
+    });
+    bar.appendChild(pill);
+  }
+  bar.hidden = state.minimized.length === 0;
+}
+
+function restoreMinimized(m, reopen) {
+  state.minimized = state.minimized.filter((x) => !(x.id === m.id && x.provider === m.provider));
+  renderMinimized();
+  if (reopen) openSession(m);
+}
+
+function clearMainView() {
+  state.current = null;
+  $("composer").hidden = true;
+  $("shareBtn").hidden = true;
+  $("minimizeBtn").hidden = true;
+  $("privateBadge").hidden = true;
+  $("chatTitle").textContent = "Select a session";
+  $("chatSub").textContent = "";
+  markActive();
+  app.classList.remove("show-chat");
+  $("transcript").innerHTML =
+    `<div class="welcome"><div class="welcome-mark">✳</div>` +
+    `<h1>Your thinking partner, headless.</h1>` +
+    `<p class="muted">Pick a session on the left, or start a new one.</p></div>`;
 }
 
 // ---- Share links -----------------------------------------------------------
@@ -533,7 +574,15 @@ function renderTranscriptMessage(m) {
 
 // ---- Composing / sending ---------------------------------------------------
 function onInputKey(e) {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); return; }
+  if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); cyclePermMode(); }
+}
+
+// Shift+Tab cycles the working mode (Ask → Accept edits → Plan → Bypass → …).
+function cyclePermMode() {
+  const sel = $("permMode");
+  sel.selectedIndex = (sel.selectedIndex + 1) % sel.options.length;
+  showToast("Mode: " + sel.options[sel.selectedIndex].textContent);
 }
 function autoGrow() {
   const el = $("input");
@@ -614,6 +663,7 @@ function handleSse(frame) {
       if (meta.sessionId && state.current) {
         if (meta.isNew) state.current.id = meta.sessionId;
         if (meta.provider) state.current.provider = meta.provider;
+        if (state.current.private) state.privateIds.add(meta.sessionId);
       }
     } catch { /* ignore */ }
     return;
@@ -676,15 +726,42 @@ function addAssistantBubble(text) {
 }
 function addToolChip(name, detail) {
   const d = document.createElement("div");
-  d.className = "tool";
-  d.innerHTML = `<span class="tool-name"></span>`;
-  d.querySelector(".tool-name").textContent = "🔧 " + name;
-  if (detail && detail.trim()) {
+  d.className = "tool" + (name === "result" ? " result" : "");
+
+  let body = (detail || "").trim();
+  let summary = "";
+  if (body) {
+    try {
+      const obj = JSON.parse(body);
+      if (obj && typeof obj === "object") {
+        body = JSON.stringify(obj, null, 2);   // pretty-print structured input
+        summary = toolSummary(obj);
+      }
+    } catch { /* not JSON — show as-is */ }
+  }
+
+  const head = document.createElement("div");
+  head.className = "tool-head";
+  head.innerHTML = `<span class="tool-name"></span><span class="tool-summary"></span>`;
+  head.querySelector(".tool-name").textContent = (name === "result" ? "↳ " : "🔧 ") + name;
+  head.querySelector(".tool-summary").textContent = summary;
+  d.appendChild(head);
+
+  if (body) {
     const pre = document.createElement("pre");
-    pre.textContent = detail;
+    pre.textContent = body;
     d.appendChild(pre);
   }
   $("transcript").appendChild(d);
+}
+
+// A short one-line summary of a tool call's input (e.g. the command / file / url).
+function toolSummary(obj) {
+  const f = obj.command || obj.file_path || obj.path || obj.pattern ||
+            obj.url || obj.query || obj.description || obj.prompt || obj.question;
+  if (typeof f !== "string") return "";
+  const one = f.replace(/\s+/g, " ").trim();
+  return one.length > 90 ? one.slice(0, 90) + "…" : one;
 }
 function addResultLine(ev) {
   const parts = [];
@@ -740,6 +817,7 @@ function finalizeAssistantText(text) {
 // ---- New session dialog ----------------------------------------------------
 function openNewDialog() {
   renderAgentPicker();
+  $("newPrivate").checked = false;
   const freeStyle = !!state.config.freeStyle;
   const input = $("newCwd");
   const select = $("newCwdSelect");
@@ -789,8 +867,9 @@ function onNewSubmit(e) {
   const freeStyle = !!state.config.freeStyle;
   const cwd = (freeStyle ? $("newCwd").value : $("newCwdSelect").value).trim();
   const provider = $("newAgent").value || "claude";
+  const isPrivate = $("newPrivate").checked;
   if (!cwd) { e.preventDefault(); return; }
-  openSession({ provider, project: null, id: null, cwd, title: "New session" });
+  openSession({ provider, project: null, id: null, cwd, title: isPrivate ? "Private session" : "New session", private: isPrivate });
   $("transcript").innerHTML = "";
   addWelcomeInline({ provider });
   setTimeout(() => $("input").focus(), 50);

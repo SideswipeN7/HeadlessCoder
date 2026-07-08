@@ -26,6 +26,9 @@ public sealed class CommandLineOptions
     /// <summary>When true, new sessions may target any folder; otherwise only existing project directories.</summary>
     public bool FreeStyle { get; init; }
 
+    /// <summary>When true, do not read past sessions/transcripts from disk.</summary>
+    public bool NoHistory { get; init; }
+
     public bool ShowHelp { get; init; }
 
     public static CommandLineOptions Parse(string[] args)
@@ -35,6 +38,7 @@ public sealed class CommandLineOptions
         bool help = false;
         bool noPass = false;
         bool freeStyle = false;
+        bool noHistory = false;
         string bind = "0.0.0.0";
         string? advertise = null;
         string? password = null;
@@ -55,6 +59,9 @@ public sealed class CommandLineOptions
                 case "-fs":
                 case "--free-style":
                     freeStyle = true;
+                    break;
+                case "--no-history":
+                    noHistory = true;
                     break;
                 case "-h":
                 case "-?":
@@ -102,6 +109,7 @@ public sealed class CommandLineOptions
             NoPass = noPass,
             Password = password,
             FreeStyle = freeStyle,
+            NoHistory = noHistory,
         };
     }
 
@@ -118,6 +126,7 @@ public sealed class CommandLineOptions
           -np, --no-pass      Serve without a password (open access on your LAN).
               --pass <value>  Protect access with your own password.
           -fs, --free-style   Allow new sessions in ANY folder (not just existing projects).
+              --no-history    Do not read past sessions/transcripts from disk.
               --port <n>      Port to serve the web UI on (default: 8787).
               --bind <addr>   Address Kestrel binds to (default: 0.0.0.0 = all interfaces).
               --host <ip>     LAN IP to advertise in the printed URL/QR (auto-detected otherwise).

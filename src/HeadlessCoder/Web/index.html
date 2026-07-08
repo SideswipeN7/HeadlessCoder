@@ -47,8 +47,6 @@
         <button class="seg" data-mode="agent" role="tab">By agent</button>
       </div>
 
-      <div id="doctorNote" class="doctor-note" hidden></div>
-
       <div class="sidebar-scroll" id="sessionList">
         <div class="empty muted">Loading sessions…</div>
       </div>
@@ -61,11 +59,15 @@
       <header class="topbar">
         <button class="icon-btn back-btn" id="backBtn" aria-label="Back to sessions">‹</button>
         <div class="topbar-title">
-          <div class="chat-title" id="chatTitle">Select a session</div>
+          <div class="chat-title">
+            <span id="privateBadge" class="private-badge" hidden>🕶 Private</span>
+            <span id="chatTitle">Select a session</span>
+          </div>
           <div class="chat-sub muted" id="chatSub"></div>
         </div>
         <div class="topbar-actions">
           <button class="icon-btn" id="shareBtn" aria-label="Copy share link" title="Copy share link" hidden>🔗</button>
+          <button class="icon-btn" id="minimizeBtn" aria-label="Minimize" title="Minimize" hidden>▁</button>
           <button class="icon-btn" id="refreshBtn" aria-label="Refresh" title="Refresh">⟳</button>
           <button class="icon-btn" id="gearBtn" aria-label="Settings" title="Settings">⚙️</button>
         </div>
@@ -125,6 +127,10 @@
         <datalist id="projectPaths"></datalist>
       </label>
       <p class="muted small" id="newCwdHint">Pick one of your existing projects.</p>
+      <label class="check">
+        <input type="checkbox" id="newPrivate" />
+        <span>Start in-private — keep it out of the session list; you can minimize it.</span>
+      </label>
       <div class="dialog-actions">
         <button value="cancel" class="btn btn-secondary" type="submit" formnovalidate>Cancel</button>
         <button value="ok" class="btn btn-primary" id="newOkBtn" type="submit">Start</button>
@@ -199,16 +205,22 @@
             <li><b>Permission mode</b> — <i>Ask</i> skips tools needing approval, <i>Accept edits</i>
                 auto-approves file edits, <i>Plan</i> makes no changes, <i>Bypass</i> runs everything.</li>
             <li><b>Send</b> — Enter sends, Shift+Enter for a newline. Replies render as Markdown.</li>
+            <li><b>Working mode</b> — <b>Shift+Tab</b> in the message box cycles Ask → Accept edits →
+                Plan → Bypass.</li>
+            <li><b>In-private</b> — start a session that stays out of the list; minimize it with ▁
+                and restore it from the pill in the corner.</li>
             <li><b>Appearance</b> — switch color scheme, light/dark, and hand-tune colors here.
                 All saved in this browser.</li>
           </ul>
           <p class="muted small">CLI flags: <code>--no-sleep</code>, <code>--pass</code>,
-             <code>--no-pass</code>, <code>--free-style</code>, <code>--port</code>, <code>--help</code>.</p>
+             <code>--no-pass</code>, <code>--free-style</code>, <code>--no-history</code>,
+             <code>--port</code>, <code>--help</code>.</p>
         </div>
       </div>
     </form>
   </dialog>
 
+  <div id="minimizedBar" class="minimized-bar" hidden></div>
   <div id="toast" class="toast" hidden></div>
 
   <script src="/hc/app.js"></script>

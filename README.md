@@ -51,8 +51,11 @@ streaming responses.
 - **Settings modal.** The ⚙️ in the header opens Appearance (color scheme, light/dark, hand-tuned
   colors), Agents (which CLIs are active, with Refresh), and Help — all in one place.
 - **Markdown replies.** Assistant output renders as Markdown — headings, lists, tables, and code
-  blocks — like Claude Desktop.
+  blocks — like Claude Desktop. Tool calls show a summary + pretty-printed input.
 - **Share links.** 🔗 copies a link that reopens the current conversation on any device.
+- **Shift+Tab** cycles the working mode (Ask → Accept edits → Plan → Bypass) from the composer.
+- **In-private sessions.** Start a session that stays out of the list and can be **minimized**
+  to a pill and restored later.
 - **Collapsible groups.** In "By agent" view the agent groups collapse; state is remembered.
 - **Switchable themes + light/dark.** Pick a UI style by name — **Claude**, **GitHub**,
   **OpenAI**, **opencode**, **Obsidian** — each with a light and dark variant. Your choice is
@@ -64,11 +67,19 @@ streaming responses.
 | Agent | Detect | History / resume | Send message |
 |-------|:------:|:----------------:|--------------|
 | **Claude Code** (`claude`) | ✅ | ✅ reads `~/.claude/projects`, resumes by id | ✅ `claude --print --output-format stream-json` |
-| **Gemini CLI** (`gemini`) | ✅ | — | ✅ one-shot `gemini --prompt` (stdout streamed) |
-| **Copilot CLI** (`copilot`) | ✅ | — | ✅ one-shot `copilot --prompt` (stdout streamed) |
+| **Gemini CLI** (`gemini`) | ✅ | — | ✅ one-shot `gemini --prompt` |
+| **Copilot CLI** (`copilot`) | ✅ | — | ✅ one-shot `copilot --prompt` |
+| **Codex CLI** (`codex`) | ✅ | — | ✅ one-shot `codex exec` |
+| **opencode** (`opencode`) | ✅ | — | ✅ one-shot `opencode run` |
+| **Cursor Agent** (`cursor-agent`) | ✅ | — | ✅ one-shot `cursor-agent -p` |
+| **Aider** (`aider`) | ✅ | — | ✅ one-shot `aider --message` |
+| **Qwen Code** (`qwen`) | ✅ | — | ✅ one-shot `qwen --prompt` |
 
-Adding another agent is a matter of implementing `IAgentProvider` (or subclassing
-`GenericCliProvider`) and registering it — see `src/HeadlessCoder/Agents/`.
+Detection is verified for all; Claude is fully wired end-to-end. The other CLIs run as
+one-shot headless prompts with stdout streamed to the UI — their exact flags are best-effort
+until the CLI is installed and confirmed. Adding another agent is a matter of implementing
+`IAgentProvider` (or subclassing `GenericCliProvider`) and registering it — see
+`src/HeadlessCoder/Agents/`.
 
 ## Requirements
 
@@ -136,6 +147,7 @@ Then open the printed URL (or scan the QR code) on any device on the same networ
 | `-np`, `--no-pass` | Serve without a password (open access on your LAN). |
 | `--pass <value>` | Protect access with your own password. |
 | `-fs`, `--free-style` | Allow new sessions in **any** folder (default: only existing projects). |
+| `--no-history` | Don't read past sessions/transcripts from disk. |
 | `--port <n>` | Port to serve the web UI on (default `8787`). |
 | `--bind <addr>` | Address Kestrel binds to (default `0.0.0.0` = all interfaces). |
 | `--host <ip>` | LAN IP to advertise in the printed URL/QR (auto-detected otherwise). |
