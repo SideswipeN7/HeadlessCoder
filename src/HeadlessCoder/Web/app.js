@@ -877,8 +877,9 @@ function addAssistantBubble(text) {
   $("transcript").appendChild(wrap);
 }
 function addToolChip(name, detail) {
+  const isResult = name === "result";
   const d = document.createElement("div");
-  d.className = "tool" + (name === "result" ? " result" : "");
+  d.className = "tool" + (isResult ? " tool-result" : "");
 
   let body = (detail || "").trim();
   let summary = "";
@@ -886,23 +887,37 @@ function addToolChip(name, detail) {
     try {
       const obj = JSON.parse(body);
       if (obj && typeof obj === "object") {
-        body = JSON.stringify(obj, null, 2);   // pretty-print structured input
-        summary = toolSummary(obj);
+        body = JSON.stringify(obj, null, 2);            // pretty-print structured input
+        summary = toolSummary(obj) || firstLine(body);
+      } else {
+        summary = firstLine(body);
       }
-    } catch { /* not JSON — show as-is */ }
+    } catch {
+      summary = firstLine(body);                        // plain text (e.g. command output)
+    }
   }
+  const hasBody = body.length > 0;
 
-  const head = document.createElement("div");
+  const head = document.createElement("button");
+  head.type = "button";
   head.className = "tool-head";
-  head.innerHTML = `<span class="tool-name"></span><span class="tool-summary"></span>`;
-  head.querySelector(".tool-name").textContent = (name === "result" ? "↳ " : "🔧 ") + name;
+  head.innerHTML =
+    `<span class="tool-icon">${isResult ? "↳" : "🔧"}</span>` +
+    `<span class="tool-name"></span>` +
+    `<span class="tool-summary"></span>` +
+    (hasBody ? `<span class="tool-caret">▸</span>` : "");
+  head.querySelector(".tool-name").textContent = name;
   head.querySelector(".tool-summary").textContent = summary;
   d.appendChild(head);
 
-  if (body) {
+  if (hasBody) {
     const pre = document.createElement("pre");
+    pre.className = "tool-body";
     pre.textContent = body;
     d.appendChild(pre);
+    head.addEventListener("click", () => d.classList.toggle("open"));
+  } else {
+    head.classList.add("no-body");
   }
   $("transcript").appendChild(d);
 }
@@ -912,9 +927,10 @@ function toolSummary(obj) {
   const f = obj.command || obj.file_path || obj.path || obj.pattern ||
             obj.url || obj.query || obj.description || obj.prompt || obj.question;
   if (typeof f !== "string") return "";
-  const one = f.replace(/\s+/g, " ").trim();
-  return one.length > 90 ? one.slice(0, 90) + "…" : one;
+  return clip(f.replace(/\s+/g, " ").trim());
 }
+function firstLine(s) { return clip(String(s).split("\n")[0].trim()); }
+function clip(s) { return s.length > 100 ? s.slice(0, 100) + "…" : s; }
 function addResultLine(ev) {
   const parts = [];
   if (typeof ev.durationMs === "number") parts.push(`${(ev.durationMs / 1000).toFixed(1)}s`);

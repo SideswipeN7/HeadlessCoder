@@ -354,37 +354,65 @@ body {
   font-weight: 500;
 }
 
-/* Tool chips */
+/* Tool cards (collapsible) */
 .tool {
   align-self: flex-start;
+  width: min(760px, 100%);
   background: var(--surface-dark);
   color: var(--on-dark);
+  border: 1px solid var(--surface-dark-elevated);
   border-radius: var(--r-lg);
-  padding: 10px 14px;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  max-width: min(760px, 100%);
   overflow: hidden;
 }
-.tool-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.tool .tool-name { color: var(--accent-teal); font-weight: 600; flex: none; }
-.tool .tool-summary {
+.tool-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: inherit;
+}
+.tool-head.no-body { cursor: default; }
+.tool-icon { flex: none; opacity: 0.9; }
+.tool-name { color: var(--accent-teal); font-weight: 600; flex: none; }
+.tool-result .tool-name { color: var(--on-dark-soft); }
+.tool-summary {
+  flex: 1;
+  min-width: 0;
   color: var(--on-dark-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
 }
-.tool pre {
-  margin: 8px 0 0;
+.tool-caret {
+  flex: none;
+  color: var(--on-dark-soft);
+  transition: transform .15s ease;
+  font-size: 11px;
+}
+.tool.open .tool-caret { transform: rotate(90deg); }
+.tool-body {
+  display: none;
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--surface-dark-elevated);
+  background: var(--surface-dark-soft);
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--on-dark-soft);
-  max-height: 260px;
-  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
   line-height: 1.5;
+  max-height: 320px;
+  overflow: auto;
 }
-.tool.result .tool-name { color: var(--muted-soft); }
+.tool.open .tool-body { display: block; }
 
 .result-line {
   align-self: center;
