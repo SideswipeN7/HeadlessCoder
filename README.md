@@ -56,6 +56,8 @@ streaming responses.
   colors), Agents (which CLIs are active, with Refresh), and Help — all in one place.
 - **Markdown replies.** Assistant output renders as Markdown — headings, lists, tables, and code
   blocks — like Claude Desktop. Tool calls show a summary + pretty-printed input.
+- **Rename sessions.** ✎ (or double-click the title) gives a session a custom name, stored
+  separately from the agent's transcript; clearing it restores the original.
 - **Share links.** 🔗 copies a link that reopens the current conversation on any device.
 - **Shift+Tab** cycles the working mode (Ask → Accept edits → Plan → Bypass) from the composer.
 - **Effort control.** Pick the reasoning effort per message (Claude: low → max).

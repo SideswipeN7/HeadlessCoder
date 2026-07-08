@@ -66,6 +66,7 @@
           <div class="chat-sub muted" id="chatSub"></div>
         </div>
         <div class="topbar-actions">
+          <button class="icon-btn" id="renameBtn" aria-label="Rename session" title="Rename session" hidden>✎</button>
           <button class="icon-btn" id="shareBtn" aria-label="Copy share link" title="Copy share link" hidden>🔗</button>
           <button class="icon-btn" id="minimizeBtn" aria-label="Minimize" title="Minimize" hidden>▁</button>
           <button class="icon-btn" id="refreshBtn" aria-label="Refresh" title="Refresh">⟳</button>
@@ -232,6 +233,22 @@
              <code title="Port to serve the web UI on (default 8787).">--port &lt;n&gt;</code>,
              <code title="Show CLI help.">--help</code>.</p>
         </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Rename session -->
+  <dialog id="renameDialog" class="dialog">
+    <form method="dialog" id="renameForm">
+      <h2>Rename session</h2>
+      <label class="field">
+        <span>Title</span>
+        <input id="renameInput" maxlength="120" autocomplete="off" />
+      </label>
+      <p class="muted small">Leave blank to restore the original title.</p>
+      <div class="dialog-actions">
+        <button value="cancel" class="btn btn-secondary" type="submit" formnovalidate>Cancel</button>
+        <button value="ok" class="btn btn-primary" type="submit">Save</button>
       </div>
     </form>
   </dialog>

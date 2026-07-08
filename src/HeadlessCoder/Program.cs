@@ -46,6 +46,7 @@ builder.Services.AddSingleton<IAgentProvider, QwenProvider>();
 builder.Services.AddSingleton<IAgentProvider, DeepSeekProvider>();
 builder.Services.AddSingleton<AgentRegistry>(sp =>
     new AgentRegistry(sp.GetServices<IAgentProvider>()));
+builder.Services.AddSingleton<SessionTitleStore>(_ => new SessionTitleStore());
 
 var app = builder.Build();
 var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
@@ -136,14 +137,27 @@ app.MapGet("/api/projects", (AgentRegistry reg) =>
         : reg.ListWorkingDirectories().Select(p => new { path = p }), jsonOpts));
 
 // All sessions across every agent (optionally filtered to one provider).
-app.MapGet("/api/sessions", (AgentRegistry reg, string? provider) =>
+app.MapGet("/api/sessions", (AgentRegistry reg, SessionTitleStore titles, string? provider) =>
 {
     if (options.NoHistory)
         return Results.Json(Array.Empty<object>(), jsonOpts);
     var all = reg.ListAllSessions();
     if (!string.IsNullOrWhiteSpace(provider))
         all = all.Where(s => string.Equals(s.Provider, provider, StringComparison.OrdinalIgnoreCase)).ToList();
-    return Results.Json(all, jsonOpts);
+
+    // Apply user-chosen titles.
+    var overrides = titles.Snapshot();
+    var withTitles = all.Select(s =>
+        overrides.TryGetValue(s.Id, out var t) ? s with { Title = t } : s).ToList();
+    return Results.Json(withTitles, jsonOpts);
+});
+
+// Rename a session (blank title clears the override).
+app.MapPost("/api/sessions/{id}/rename", async (HttpContext ctx, SessionTitleStore titles, string id) =>
+{
+    var body = await JsonSerializer.DeserializeAsync<RenameBody>(ctx.Request.Body, jsonOpts, ctx.RequestAborted);
+    titles.Set(id, body?.Title);
+    return Results.Json(new { ok = true, title = titles.Get(id) }, jsonOpts);
 });
 
 app.MapGet("/api/sessions/{provider}/{project}/{id}", (AgentRegistry reg, string provider, string project, string id) =>
@@ -290,3 +304,4 @@ static void AppendAuthCookie(HttpContext ctx, string token) =>
     });
 
 sealed record LoginBody(string? Password);
+sealed record RenameBody(string? Title);

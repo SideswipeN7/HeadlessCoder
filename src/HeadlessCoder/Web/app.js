@@ -37,6 +37,9 @@ window.addEventListener("DOMContentLoaded", () => {
   $("gearBtn").addEventListener("click", () => openSettings());
   $("shareBtn").addEventListener("click", shareCurrent);
   $("minimizeBtn").addEventListener("click", minimizeCurrent);
+  $("renameBtn").addEventListener("click", openRename);
+  $("renameForm").addEventListener("submit", onRenameSubmit);
+  $("chatTitle").addEventListener("dblclick", openRename);
   $("agentsRefresh").addEventListener("click", refreshAgents);
   for (const tab of document.querySelectorAll("#settingsTabs .tab"))
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
@@ -483,6 +486,7 @@ async function openSession(sess) {
   $("composer").hidden = false;
   $("privateBadge").hidden = !sess.private;
   $("shareBtn").hidden = !sess.id || !!sess.private;  // private sessions aren't shareable
+  $("renameBtn").hidden = !sess.id || !!sess.private; // rename saved (non-private) sessions
   $("minimizeBtn").hidden = !sess.private;            // minimize is for in-private sessions
   if (sess.private && sess.id) state.privateIds.add(sess.id);
   app.classList.add("show-chat");
@@ -554,6 +558,35 @@ function clearMainView() {
     `<div class="welcome"><div class="welcome-mark">✳</div>` +
     `<h1>Your thinking partner, headless.</h1>` +
     `<p class="muted">Pick a session on the left, or start a new one.</p></div>`;
+}
+
+// ---- Rename session --------------------------------------------------------
+function openRename() {
+  const s = state.current;
+  if (!s || !s.id || s.private) return;
+  $("renameInput").value = s.title || "";
+  $("renameDialog").showModal();
+  setTimeout(() => $("renameInput").select(), 50);
+}
+
+async function onRenameSubmit(e) {
+  const btn = e.submitter;
+  if (!btn || btn.value !== "ok") return;
+  const s = state.current;
+  if (!s || !s.id) return;
+  const title = $("renameInput").value.trim();
+  try {
+    await fetch(`/api/sessions/${encodeURIComponent(s.id)}/rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    if (title) { s.title = title; $("chatTitle").textContent = title; }
+    await loadSessions();  // refresh sidebar; also recovers the original title when cleared
+    const fresh = state.sessions.find((x) => x.id === s.id && (x.provider || "claude") === s.provider);
+    if (fresh) { s.title = fresh.title; $("chatTitle").textContent = fresh.title; }
+    showToast(title ? "Renamed" : "Title reset");
+  } catch { showToast("Rename failed"); }
 }
 
 // ---- Share links -----------------------------------------------------------
