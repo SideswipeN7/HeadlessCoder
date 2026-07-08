@@ -83,6 +83,25 @@ public sealed class CursorProvider : GenericCliProvider
     }
 }
 
+/// <summary>DeepSeek CLI — `deepseek --prompt "…"` (best-effort).</summary>
+public sealed class DeepSeekProvider : GenericCliProvider
+{
+    public override string Id => "deepseek";
+    public override string DisplayName => "DeepSeek CLI";
+    protected override string ExecutableName => "deepseek";
+    protected override string? ConfigDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".deepseek");
+    protected override string InstallHint =>
+        "Install a DeepSeek CLI (e.g. `npm install -g deepseek-cli`), then set your DEEPSEEK_API_KEY.";
+
+    protected override IEnumerable<string> BuildArgs(SendMessageRequest r)
+    {
+        var a = new List<string> { "--prompt", r.Message };
+        if (!string.IsNullOrWhiteSpace(r.Model)) { a.Add("--model"); a.Add(r.Model!); }
+        return a;
+    }
+}
+
 /// <summary>Qwen Code (a Gemini-CLI fork) — `qwen --prompt "…"`.</summary>
 public sealed class QwenProvider : GenericCliProvider
 {

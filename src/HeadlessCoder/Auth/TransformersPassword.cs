@@ -26,23 +26,13 @@ public static class TransformersPassword
     public static IReadOnlyList<string> AllNames => Names;
 
     /// <summary>
-    /// Picks <paramref name="count"/> distinct names at random and joins them with '-',
-    /// followed by a two-digit number for a little extra entropy.
+    /// One random Transformers name followed by a number — short and easy to type,
+    /// e.g. "Bumblebee742".
     /// </summary>
-    public static string Generate(int count = 3)
+    public static string Generate()
     {
-        count = Math.Clamp(count, 2, Names.Length);
-
-        // Fisher–Yates shuffle of indices using a cryptographic RNG.
-        int[] idx = Enumerable.Range(0, Names.Length).ToArray();
-        for (int i = idx.Length - 1; i > 0; i--)
-        {
-            int j = RandomNumberGenerator.GetInt32(i + 1);
-            (idx[i], idx[j]) = (idx[j], idx[i]);
-        }
-
-        var picked = idx.Take(count).Select(k => Names[k]);
-        int suffix = RandomNumberGenerator.GetInt32(10, 100);
-        return string.Join('-', picked) + "-" + suffix;
+        string name = Names[RandomNumberGenerator.GetInt32(Names.Length)];
+        int number = RandomNumberGenerator.GetInt32(100, 1000); // 3 digits
+        return name + number;
     }
 }

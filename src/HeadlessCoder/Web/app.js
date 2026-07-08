@@ -101,9 +101,11 @@ function renderAgentsList() {
   for (const a of state.agents) {
     const status = a.status || (a.installed ? "ready" : "missing");
     const sub = a.installed
-      ? [a.version, a.supportsHistory && a.sessionCount ? `${a.sessionCount} sessions` : null]
-          .filter(Boolean).join(" · ") || "installed"
-      : (a.remediation || "not installed");
+      ? ([a.version, a.supportsHistory && a.sessionCount ? `${a.sessionCount} sessions` : null]
+          .filter(Boolean).join(" · ") || "installed")
+      : "not installed — tap for install steps";
+    const detail = a.installed ? (a.executablePath || "") : (a.remediation || "");
+
     const row = document.createElement("div");
     row.className = "agent-row";
     row.innerHTML = `
@@ -111,11 +113,14 @@ function renderAgentsList() {
       <div class="agent-info">
         <div class="agent-name"></div>
         <div class="agent-sub"></div>
+        <div class="agent-detail"></div>
       </div>
       <span class="agent-state ${status}"></span>`;
     row.querySelector(".agent-name").textContent = a.displayName;
     row.querySelector(".agent-sub").textContent = sub;
-    row.querySelector(".agent-state").textContent = status;
+    row.querySelector(".agent-detail").textContent = detail;
+    if (detail) row.addEventListener("click", () => row.classList.toggle("open"));
+    else row.classList.add("no-detail");
     wrap.appendChild(row);
   }
 }

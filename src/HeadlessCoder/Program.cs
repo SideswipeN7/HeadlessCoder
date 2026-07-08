@@ -43,6 +43,7 @@ builder.Services.AddSingleton<IAgentProvider, OpencodeProvider>();
 builder.Services.AddSingleton<IAgentProvider, CursorProvider>();
 builder.Services.AddSingleton<IAgentProvider, AiderProvider>();
 builder.Services.AddSingleton<IAgentProvider, QwenProvider>();
+builder.Services.AddSingleton<IAgentProvider, DeepSeekProvider>();
 builder.Services.AddSingleton<AgentRegistry>(sp =>
     new AgentRegistry(sp.GetServices<IAgentProvider>()));
 
