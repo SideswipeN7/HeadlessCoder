@@ -69,6 +69,40 @@ Adding another agent is a matter of implementing `IAgentProvider` (or subclassin
   missing and how to fix it.
 - To build from source: the [.NET SDK](https://dotnet.microsoft.com/download) (10.0+).
 
+## Install
+
+One line — no runtime to install, the binary is self-contained. It drops `headlesscoder`
+and an `hc` shortcut onto your machine.
+
+**Linux / macOS**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/SideswipeN7/HeadlessCoder/main/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/SideswipeN7/HeadlessCoder/main/install.ps1 | iex
+```
+
+Then run `headlesscoder --no-sleep` (or just `hc`).
+
+The installers pull the latest [release](https://github.com/SideswipeN7/HeadlessCoder/releases)
+for your OS/arch. Handy environment overrides:
+
+| Variable | Effect |
+|----------|--------|
+| `HC_VERSION` | Install a specific tag, e.g. `HC_VERSION=v1.2.0`. |
+| `HC_INSTALL_DIR` | Install location (default `~/.local/bin`, or `%LOCALAPPDATA%\Programs\HeadlessCoder` on Windows). |
+
+> Prefer not to pipe to a shell? Download the matching binary from the
+> [Releases page](https://github.com/SideswipeN7/HeadlessCoder/releases), rename it to
+> `headlesscoder`, and put it on your `PATH`.
+
+Releases are built automatically by the [`release`](.github/workflows/release.yml) workflow
+for `linux-x64/arm64`, `osx-x64/arm64`, and `win-x64/arm64` whenever a `vX.Y.Z` tag is pushed.
+
 ## Run
 
 Download/build the single-file binary for your OS, then:
@@ -136,6 +170,16 @@ dotnet publish src/HeadlessCoder -c Release -r linux-x64 -o publish/linux-x64
 ```
 
 The resulting `headlesscoder[.exe]` is the only file you need to run.
+
+### Cutting a release
+
+Push a semver tag and CI builds every platform binary and attaches it to the release
+(which the install scripts then fetch):
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ## How it works
 

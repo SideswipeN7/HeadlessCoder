@@ -1,0 +1,71 @@
+name: release
+
+# Build self-contained single-file binaries for every platform and attach them
+# to the GitHub Release when a version tag (vX.Y.Z) is pushed.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rid: linux-x64
+            asset: headlesscoder-linux-x64
+          - runner: ubuntu-latest
+            rid: linux-arm64
+            asset: headlesscoder-linux-arm64
+          - runner: macos-latest
+            rid: osx-x64
+            asset: headlesscoder-osx-x64
+          - runner: macos-latest
+            rid: osx-arm64
+            asset: headlesscoder-osx-arm64
+          - runner: windows-latest
+            rid: win-x64
+            asset: headlesscoder-win-x64.exe
+          - runner: windows-latest
+            rid: win-arm64
+            asset: headlesscoder-win-arm64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish (${{ matrix.rid }})
+        shell: bash
+        run: |
+          dotnet publish src/HeadlessCoder/HeadlessCoder.csproj \
+            -c Release -r ${{ matrix.rid }} \
+            -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true \
+            --self-contained true \
+            -o out
+
+      - name: Stage asset
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ -f out/headlesscoder.exe ]; then
+            cp out/headlesscoder.exe "dist/${{ matrix.asset }}"
+          else
+            cp out/headlesscoder "dist/${{ matrix.asset }}"
+          fi
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.asset }}
+          fail_on_unmatched_files: true
