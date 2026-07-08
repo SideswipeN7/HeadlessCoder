@@ -1,7 +1,9 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using HeadlessCoder;
 using HeadlessCoder.Agents;
+using HeadlessCoder.Auth;
 using HeadlessCoder.Claude;
 using HeadlessCoder.Hosting;
 using HeadlessCoder.Networking;
@@ -16,6 +18,14 @@ if (options.ShowHelp)
 }
 
 ConsoleUi.PrintBanner();
+
+// Resolve access control: --no-pass disables it, --pass sets an explicit password,
+// otherwise generate a memorable one from Transformers names.
+bool authEnabled = !options.NoPass;
+string password = authEnabled
+    ? (!string.IsNullOrWhiteSpace(options.Password) ? options.Password! : TransformersPassword.Generate())
+    : "";
+string authToken = authEnabled ? Guid.NewGuid().ToString("N") : "";
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args });
 builder.Logging.ClearProviders();
@@ -33,6 +43,56 @@ builder.Services.AddSingleton<AgentRegistry>(sp =>
 
 var app = builder.Build();
 var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+// ---- Access control ----------------------------------------------------------
+// A valid `?key=<password>` (as embedded in the QR) or the login form sets a
+// session cookie; everything else is gated behind it.
+if (authEnabled)
+{
+    app.Use(async (ctx, next) =>
+    {
+        string path = ctx.Request.Path.Value ?? "";
+        bool openPath =
+            path.Equals("/hc/login", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/login", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/favicon.ico", StringComparison.OrdinalIgnoreCase);
+        if (openPath) { await next(); return; }
+
+        string? key = ctx.Request.Query["key"];
+        if (key is not null && FixedEquals(key, password))
+        {
+            AppendAuthCookie(ctx, authToken);
+            await next();
+            return;
+        }
+        if (ctx.Request.Cookies.TryGetValue("hc_auth", out var cookie) && FixedEquals(cookie, authToken))
+        {
+            await next();
+            return;
+        }
+
+        if (path.StartsWith("/api", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await ctx.Response.WriteAsJsonAsync(new { error = "unauthorized" });
+            return;
+        }
+        ctx.Response.Redirect("/hc/login");
+    });
+}
+
+app.MapGet("/hc/login", () => authEnabled ? ServeAsset("login.html") : Results.Redirect("/hc"));
+app.MapPost("/api/login", async (HttpContext ctx) =>
+{
+    if (!authEnabled) return Results.Ok(new { ok = true });
+    var body = await JsonSerializer.DeserializeAsync<LoginBody>(ctx.Request.Body, jsonOpts, ctx.RequestAborted);
+    if (body is not null && FixedEquals(body.Password ?? "", password))
+    {
+        AppendAuthCookie(ctx, authToken);
+        return Results.Ok(new { ok = true });
+    }
+    return Results.Unauthorized();
+});
 
 // ---- Web UI (embedded, single-file) ------------------------------------------
 
@@ -52,6 +112,7 @@ app.MapGet("/api/health", (AgentRegistry reg) => Results.Json(new
 {
     ok = true,
     anyAgent = reg.Diagnose().AnyAgentAvailable,
+    auth = authEnabled,
 }, jsonOpts));
 
 // Preflight / doctor: what's installed and what to do about what isn't.
@@ -136,6 +197,8 @@ DoctorReport doctor = registry.Diagnose();
 
 string host = options.AdvertiseHost ?? NetworkHelper.GetLanIpv4();
 string url = $"http://{host}:{options.Port}/hc";
+// The QR embeds the access key so scanning signs you in automatically.
+string qrContent = authEnabled ? $"{url}?key={Uri.EscapeDataString(password)}" : url;
 
 SleepPreventer? sleep = options.NoSleep ? SleepPreventer.Start() : null;
 app.Lifetime.ApplicationStopping.Register(() => sleep?.Dispose());
@@ -143,7 +206,8 @@ app.Lifetime.ApplicationStopping.Register(() => sleep?.Dispose());
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     ConsoleUi.PrintDoctor(doctor);
-    ConsoleUi.PrintStartup(url, options.NoSleep, sleep?.Status ?? "n/a", options.BindAddress, options.Port);
+    ConsoleUi.PrintStartup(url, qrContent, authEnabled ? password : null,
+        options.NoSleep, sleep?.Status ?? "n/a", options.BindAddress, options.Port);
 });
 
 await app.RunAsync();
@@ -170,3 +234,21 @@ static async Task WriteSse(HttpContext ctx, string @event, string data)
     await ctx.Response.WriteAsync(sb.ToString(), ctx.RequestAborted);
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 }
+
+static bool FixedEquals(string a, string b)
+{
+    var ba = Encoding.UTF8.GetBytes(a);
+    var bb = Encoding.UTF8.GetBytes(b);
+    return ba.Length == bb.Length && CryptographicOperations.FixedTimeEquals(ba, bb);
+}
+
+static void AppendAuthCookie(HttpContext ctx, string token) =>
+    ctx.Response.Cookies.Append("hc_auth", token, new CookieOptions
+    {
+        HttpOnly = true,
+        SameSite = SameSiteMode.Lax,
+        Path = "/",
+        MaxAge = TimeSpan.FromDays(30),
+    });
+
+sealed record LoginBody(string? Password);

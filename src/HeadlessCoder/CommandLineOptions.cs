@@ -17,6 +17,12 @@ public sealed class CommandLineOptions
     /// <summary>Optional explicit LAN IP to advertise in the URL/QR (auto-detected otherwise).</summary>
     public string? AdvertiseHost { get; init; }
 
+    /// <summary>When true, serve without any password (open access on the LAN).</summary>
+    public bool NoPass { get; init; }
+
+    /// <summary>Explicit password to protect access with. When null and not <see cref="NoPass"/>, one is generated.</summary>
+    public string? Password { get; init; }
+
     public bool ShowHelp { get; init; }
 
     public static CommandLineOptions Parse(string[] args)
@@ -24,8 +30,10 @@ public sealed class CommandLineOptions
         int port = 8787;
         bool noSleep = false;
         bool help = false;
+        bool noPass = false;
         string bind = "0.0.0.0";
         string? advertise = null;
+        string? password = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -35,6 +43,10 @@ public sealed class CommandLineOptions
                 case "-ns":
                 case "--no-sleep":
                     noSleep = true;
+                    break;
+                case "-np":
+                case "--no-pass":
+                    noPass = true;
                     break;
                 case "-h":
                 case "-?":
@@ -53,13 +65,21 @@ public sealed class CommandLineOptions
                     if (i + 1 < args.Length)
                         advertise = args[++i];
                     break;
+                case "--pass":
+                    if (i + 1 < args.Length)
+                        password = args[++i];
+                    break;
                 default:
-                    // Allow "--port=8080" style too.
+                    // Allow "--port=8080" / "--pass=secret" style too.
                     if (a.StartsWith("--port=", StringComparison.OrdinalIgnoreCase) &&
                         int.TryParse(a.AsSpan("--port=".Length), out int p2))
                         port = p2;
                     else if (a.StartsWith("--host=", StringComparison.OrdinalIgnoreCase))
                         advertise = a["--host=".Length..];
+                    else if (a.StartsWith("--pass=", StringComparison.OrdinalIgnoreCase))
+                        password = a["--pass=".Length..];
+                    else if (a.StartsWith("--bind=", StringComparison.OrdinalIgnoreCase))
+                        bind = a["--bind=".Length..];
                     break;
             }
         }
@@ -71,23 +91,35 @@ public sealed class CommandLineOptions
             ShowHelp = help,
             BindAddress = bind,
             AdvertiseHost = advertise,
+            NoPass = noPass,
+            Password = password,
         };
     }
 
     public static string HelpText =>
         """
-        HeadlessCoder - manage your coding-agent CLIs (Claude Code, Gemini, Copilot) from your phone or any device on your LAN.
+        HeadlessCoder - manage your coding-agent CLIs (Claude Code, Gemini, Copilot) from
+        your phone or any device on your LAN.
 
         Usage:
           headlesscoder [options]
 
         Options:
           -ns, --no-sleep     Prevent the host machine from going to sleep while running.
+          -np, --no-pass      Serve without a password (open access on your LAN).
+              --pass <value>  Protect access with your own password.
               --port <n>      Port to serve the web UI on (default: 8787).
               --bind <addr>   Address Kestrel binds to (default: 0.0.0.0 = all interfaces).
               --host <ip>     LAN IP to advertise in the printed URL/QR (auto-detected otherwise).
-          -h, --help          Show this help.
+          -h,  --help         Show this help.
 
-        Once running, open the printed URL (or scan the QR code) on any device on the same network.
+        Access control:
+          By default a password is generated from Transformers names and printed at startup.
+          The QR code embeds it, so scanning signs you in automatically; when you open the
+          URL by hand you enter the password on a login screen.
+          Use --pass to set your own, or --no-pass to disable it entirely.
+
+        Once running, open the printed URL (or scan the QR code) on any device on the same
+        network.
         """;
 }

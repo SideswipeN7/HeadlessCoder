@@ -30,7 +30,8 @@ public static class ConsoleUi
         Console.WriteLine();
     }
 
-    public static void PrintStartup(string url, bool noSleep, string sleepStatus, string bind, int port)
+    public static void PrintStartup(string url, string qrContent, string? password,
+        bool noSleep, string sleepStatus, string bind, int port)
     {
         Console.WriteLine($"{Muted}  Serving on {bind}:{port} (all interfaces){Reset}");
         Console.WriteLine();
@@ -38,8 +39,19 @@ public static class ConsoleUi
         Console.WriteLine($"{Coral}{Bold}      {url}{Reset}");
         Console.WriteLine();
 
-        PrintQr(url);
+        // The QR encodes the access key too, so scanning signs you in automatically.
+        PrintQr(qrContent);
 
+        Console.WriteLine();
+        if (password is not null)
+        {
+            Console.WriteLine($"{Cream}  🔒 Access password{Reset} {Muted}(enter it if you open the link by hand):{Reset}");
+            Console.WriteLine($"{Coral}{Bold}      {password}{Reset}");
+        }
+        else
+        {
+            Console.WriteLine($"{Muted}  🔓 Open access — no password (started with --no-pass).{Reset}");
+        }
         Console.WriteLine();
         if (noSleep)
             Console.WriteLine($"{Muted}  ☕ Keep-awake active: {sleepStatus}{Reset}");

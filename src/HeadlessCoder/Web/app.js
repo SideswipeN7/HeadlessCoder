@@ -8,7 +8,8 @@ const state = {
   projects: [],       // [{path}]
   agents: [],         // AgentDescriptor[]
   sessions: [],       // cached last session list
-  groupMode: "recent" // "recent" | "agent"
+  groupMode: "recent", // "recent" | "agent"
+  collapsed: new Set() // collapsed group keys
 };
 
 const $ = (id) => document.getElementById(id);
@@ -30,10 +31,82 @@ window.addEventListener("DOMContentLoaded", () => {
     seg.addEventListener("click", () => setGroupMode(seg.dataset.mode));
   }
 
+  $("settingsBtn").addEventListener("click", openSettings);
+  $("helpBtn").addEventListener("click", () => $("helpDialog").showModal());
+  $("agentsRefresh").addEventListener("click", refreshAgents);
+
+  loadCollapsed();
   initAppearance();
   loadAgents();
   loadSessions();
 });
+
+// ---- Collapsible groups ----------------------------------------------------
+function loadCollapsed() {
+  try { state.collapsed = new Set(JSON.parse(localStorage.getItem("hc-collapsed") || "[]")); }
+  catch { state.collapsed = new Set(); }
+}
+function toggleCollapsed(key, groupEl) {
+  if (state.collapsed.has(key)) state.collapsed.delete(key);
+  else state.collapsed.add(key);
+  groupEl.classList.toggle("collapsed", state.collapsed.has(key));
+  try { localStorage.setItem("hc-collapsed", JSON.stringify([...state.collapsed])); } catch { /* ignore */ }
+}
+
+// ---- Settings dialog -------------------------------------------------------
+function openSettings() {
+  renderAgentsList();
+  renderAccessInfo();
+  $("settingsDialog").showModal();
+}
+function renderAgentsList() {
+  const wrap = $("agentsList");
+  wrap.innerHTML = "";
+  if (!state.agents.length) {
+    wrap.innerHTML = `<div class="muted small">No agents detected.</div>`;
+    return;
+  }
+  for (const a of state.agents) {
+    const status = a.status || (a.installed ? "ready" : "missing");
+    const sub = a.installed
+      ? [a.version, a.supportsHistory && a.sessionCount ? `${a.sessionCount} sessions` : null]
+          .filter(Boolean).join(" · ") || "installed"
+      : (a.remediation || "not installed");
+    const row = document.createElement("div");
+    row.className = "agent-row";
+    row.innerHTML = `
+      <span class="agent-dot ${status}"></span>
+      <div class="agent-info">
+        <div class="agent-name"></div>
+        <div class="agent-sub"></div>
+      </div>
+      <span class="agent-state ${status}"></span>`;
+    row.querySelector(".agent-name").textContent = a.displayName;
+    row.querySelector(".agent-sub").textContent = sub;
+    row.querySelector(".agent-state").textContent = status;
+    wrap.appendChild(row);
+  }
+}
+async function refreshAgents() {
+  const btn = $("agentsRefresh");
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = "…";
+  await loadAgents();       // re-runs server-side detection
+  await loadSessions();     // pick up sessions from a newly-installed agent
+  renderAgentsList();
+  renderAccessInfo();
+  btn.textContent = label;
+  btn.disabled = false;
+}
+async function renderAccessInfo() {
+  try {
+    const h = await (await fetch("/api/health")).json();
+    $("accessInfo").textContent = h.auth
+      ? "Access: 🔒 password protected"
+      : "Access: 🔓 open (started with --no-pass)";
+  } catch { $("accessInfo").textContent = ""; }
+}
 
 // ---- Appearance (theme + light/dark) --------------------------------------
 const THEMES = ["claude", "github", "openai", "opencode", "obsidian"];
@@ -275,20 +348,33 @@ function renderSessions(sessions) {
       groups.get(k).push(s);
     }
     for (const [prov, items] of groups)
-      list.appendChild(group(agentName(prov), items, false));
+      list.appendChild(group(agentName(prov), items, false, true, "agent:" + prov));
   } else {
     // Recent: flat, newest first (already sorted server-side), show project path.
     for (const s of sessions) list.appendChild(sessionItem(s, true));
   }
 }
 
-function group(headText, items, showAgent) {
+function group(headText, items, showAgent, collapsible, key) {
   const g = document.createElement("div");
   g.className = "project-group";
   const head = document.createElement("div");
   head.className = "project-head";
-  head.textContent = headText;
-  head.title = headText;
+
+  if (collapsible) {
+    const gkey = key || headText;
+    head.classList.add("collapsible");
+    if (state.collapsed.has(gkey)) g.classList.add("collapsed");
+    head.innerHTML = `<span class="caret">▾</span><span class="grp-name"></span><span class="grp-count"></span>`;
+    head.querySelector(".grp-name").textContent = headText;
+    head.querySelector(".grp-count").textContent = items.length;
+    head.title = headText;
+    head.addEventListener("click", () => toggleCollapsed(gkey, g));
+  } else {
+    head.textContent = headText;
+    head.title = headText;
+  }
+
   g.appendChild(head);
   for (const s of items) g.appendChild(sessionItem(s, showAgent));
   return g;

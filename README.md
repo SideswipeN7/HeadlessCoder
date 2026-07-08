@@ -46,6 +46,10 @@ streaming responses.
   code straight in the terminal.
 - **Keep-awake.** Launch with `--no-sleep` / `-ns` to stop the host from sleeping while it's
   serving (Windows / macOS / Linux).
+- **Password out of the box.** Access is protected by a password generated from Transformers
+  names (or your own via `--pass`, or off with `--no-pass`). The QR embeds it for one-scan sign-in.
+- **Settings & Help in-app.** A Settings panel shows which agent CLIs are active (with Refresh),
+  and a Help panel explains the controls. Agent groups in the sidebar are collapsible.
 - **Switchable themes + light/dark.** Pick a UI style by name — **Claude**, **GitHub**,
   **OpenAI**, **opencode**, **Obsidian** — each with a light and dark variant. Your choice is
   remembered in the browser (`localStorage`) and applied before first paint (no flash).
@@ -125,10 +129,25 @@ Then open the printed URL (or scan the QR code) on any device on the same networ
 | Flag | Description |
 |------|-------------|
 | `-ns`, `--no-sleep` | Prevent the host machine from sleeping while running. |
+| `-np`, `--no-pass` | Serve without a password (open access on your LAN). |
+| `--pass <value>` | Protect access with your own password. |
 | `--port <n>` | Port to serve the web UI on (default `8787`). |
 | `--bind <addr>` | Address Kestrel binds to (default `0.0.0.0` = all interfaces). |
 | `--host <ip>` | LAN IP to advertise in the printed URL/QR (auto-detected otherwise). |
-| `-h`, `--help` | Show help. |
+| `-h`, `--help` | Show help (also available as a Help panel in the UI). |
+
+### Access & password
+
+By default HeadlessCoder protects access with a password **generated from Transformers
+names** (e.g. `Grapple-Brawn-Jetfire-67`) and printed at startup. The **QR code embeds it**,
+so scanning from your phone signs you in automatically; if you open the URL by hand you enter
+the password on a login screen (a session cookie remembers you afterwards).
+
+- `--pass "my-secret"` — use your own password instead of the generated one.
+- `--no-pass` — disable it entirely (open access — only on trusted networks).
+
+The Settings panel (⚙️ in the sidebar) shows which agent CLIs are active and whether access is
+password-protected, with a **Refresh** to re-detect after installing a CLI.
 
 ### Permission modes
 
@@ -219,9 +238,10 @@ builder.Services.AddSingleton<IAgentProvider, MyAgentProvider>();
 
 ## Security note
 
-HeadlessCoder serves on your LAN with **no authentication**, and anyone who can reach the
-URL can drive your agent CLIs on your machine (including running tools). Only run it on
-trusted networks. A future version may add a pairing token.
+By default access requires the startup password (a session cookie is set after the first
+sign-in or QR scan). Traffic is plain HTTP on your LAN, so treat it as trusted-network only:
+anyone with the URL **and** the password can drive your agent CLIs (including running tools).
+`--no-pass` removes the password entirely — use it only on networks you trust.
 
 ## Project layout
 

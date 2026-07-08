@@ -134,6 +134,43 @@ body {
 }
 .mode-toggle:hover { background: var(--surface-card); }
 
+/* Tools row (settings / help) */
+.tools-row { display: flex; gap: 8px; padding: 0 16px 10px; }
+.tool-btn {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: 7px 8px;
+  cursor: pointer;
+}
+.tool-btn:hover { background: var(--surface-card); }
+
+/* Collapsible group header */
+.project-head.collapsible {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--r-md);
+  padding: 6px 8px 4px;
+}
+.project-head.collapsible:hover { background: var(--surface-card); }
+.project-head .caret {
+  display: inline-block;
+  transition: transform .15s ease;
+  font-size: 10px;
+  color: var(--muted-soft);
+}
+.project-group.collapsed .caret { transform: rotate(-90deg); }
+.project-group.collapsed .session-item { display: none; }
+.project-head .grp-count { margin-left: auto; color: var(--muted-soft); font-size: 11px; }
+
 /* Session list */
 .project-group { margin-bottom: 14px; }
 .project-head {
@@ -446,6 +483,44 @@ body {
   flex: none;
 }
 .custom-field span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Settings / agents */
+.dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.btn-sm { padding: 6px 12px; height: auto; font-size: 13px; }
+.agents-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-soft);
+}
+.agent-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.agent-dot.ready { background: var(--success); }
+.agent-dot.partial { background: var(--accent-amber); }
+.agent-dot.missing { background: var(--muted-soft); }
+.agent-info { flex: 1; min-width: 0; }
+.agent-name { font-size: 14px; font-weight: 500; color: var(--ink); }
+.agent-sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-state { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.agent-state.ready { color: var(--success); }
+.agent-state.partial { color: var(--accent-amber); }
+.agent-state.missing { color: var(--muted-soft); }
+.settings-meta { border-top: 1px solid var(--hairline); padding-top: 12px; }
+
+/* Help */
+.help-body { font-size: 14px; line-height: 1.55; }
+.help-body ul { padding-left: 18px; margin: 12px 0; }
+.help-body li { margin-bottom: 8px; }
+.help-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--surface-card);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
 
 .empty { padding: 24px 10px; text-align: center; font-size: 14px; }
 
