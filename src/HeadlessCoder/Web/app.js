@@ -104,7 +104,8 @@ function renderAgentsList() {
       ? ([a.version, a.supportsHistory && a.sessionCount ? `${a.sessionCount} sessions` : null]
           .filter(Boolean).join(" · ") || "installed")
       : "not installed — tap for install steps";
-    const detail = a.installed ? (a.executablePath || "") : (a.remediation || "");
+    // Wrap the exec path in backticks so it renders as a copyable command chip too.
+    const detail = a.installed ? (a.executablePath ? "`" + a.executablePath + "`" : "") : (a.remediation || "");
 
     const row = document.createElement("div");
     row.className = "agent-row";
@@ -118,10 +119,37 @@ function renderAgentsList() {
       <span class="agent-state ${status}"></span>`;
     row.querySelector(".agent-name").textContent = a.displayName;
     row.querySelector(".agent-sub").textContent = sub;
-    row.querySelector(".agent-detail").textContent = detail;
-    if (detail) row.addEventListener("click", () => row.classList.toggle("open"));
-    else row.classList.add("no-detail");
+    if (detail) {
+      renderInstallDetail(row.querySelector(".agent-detail"), detail);
+      row.addEventListener("click", () => row.classList.toggle("open"));
+    } else {
+      row.classList.add("no-detail");
+    }
     wrap.appendChild(row);
+  }
+}
+
+// Render an install hint: backtick-wrapped commands become click-to-copy chips.
+function renderInstallDetail(el, text) {
+  el.innerHTML = "";
+  for (const part of text.split(/(`[^`]+`)/)) {
+    if (!part) continue;
+    if (part.length > 1 && part[0] === "`" && part[part.length - 1] === "`") {
+      const cmd = part.slice(1, -1);
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "cmd";
+      chip.title = "Copy to clipboard";
+      chip.innerHTML = `<span class="cmd-text"></span><span class="cmd-copy">⧉</span>`;
+      chip.querySelector(".cmd-text").textContent = cmd;
+      chip.addEventListener("click", (e) => {
+        e.stopPropagation();   // don't collapse the row
+        copyText(cmd).then(() => showToast("Copied: " + cmd), () => showToast(cmd));
+      });
+      el.appendChild(chip);
+    } else {
+      el.appendChild(document.createTextNode(part));
+    }
   }
 }
 async function refreshAgents() {
