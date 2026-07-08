@@ -16,3 +16,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local design reference docs (not part of the project)
+*-DESIGN.md
