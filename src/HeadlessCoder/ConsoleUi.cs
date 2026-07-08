@@ -30,6 +30,14 @@ public static class ConsoleUi
         Console.WriteLine();
     }
 
+    public static void PrintPortInUse(int port)
+    {
+        Console.WriteLine($"  {Amber}{Bold}⚠ Port {port} is already in use.{Reset}");
+        Console.WriteLine($"{Muted}  Please start HeadlessCoder on another port, e.g.:{Reset}");
+        Console.WriteLine($"{Coral}      headlesscoder --port {port + 1}{Reset}");
+        Console.WriteLine();
+    }
+
     public static void PrintStartup(string url, string qrContent, string? password,
         bool noSleep, string sleepStatus, string bind, int port)
     {

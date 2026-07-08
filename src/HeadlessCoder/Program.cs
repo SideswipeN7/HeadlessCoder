@@ -21,6 +21,13 @@ if (options.ShowHelp)
 
 ConsoleUi.PrintBanner();
 
+// Fail fast (with a friendly message) if the port is already taken.
+if (!NetworkHelper.IsPortAvailable(options.BindAddress, options.Port))
+{
+    ConsoleUi.PrintPortInUse(options.Port);
+    Environment.Exit(1);
+}
+
 // Resolve access control: --no-pass disables it, --pass sets an explicit password,
 // otherwise generate a memorable one from Transformers names.
 bool authEnabled = !options.NoPass;

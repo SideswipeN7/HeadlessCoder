@@ -74,6 +74,30 @@ public static class NetworkHelper
         return "localhost";
     }
 
+    /// <summary>
+    /// Returns true if the given port can be bound on the configured address
+    /// (i.e. it's free). Used to fail fast with a friendly message.
+    /// </summary>
+    public static bool IsPortAvailable(string bindAddress, int port)
+    {
+        IPAddress addr = IPAddress.TryParse(bindAddress, out var a) ? a : IPAddress.Any;
+        TcpListener? listener = null;
+        try
+        {
+            listener = new TcpListener(addr, port);
+            listener.Start();
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        finally
+        {
+            listener?.Stop();
+        }
+    }
+
     private static bool IsPrivate(IPAddress address)
     {
         byte[] b = address.GetAddressBytes();
