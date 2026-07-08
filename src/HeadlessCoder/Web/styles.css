@@ -1,30 +1,6 @@
 :root {
-  /* Palette (from the Claude design system) */
-  --primary: #cc785c;
-  --primary-active: #a9583e;
-  --ink: #141413;
-  --body: #3d3d3a;
-  --muted: #6c6a64;
-  --muted-soft: #8e8b82;
-  --hairline: #e6dfd8;
-  --hairline-soft: #ebe6df;
-  --canvas: #faf9f5;
-  --surface-soft: #f5f0e8;
-  --surface-card: #efe9de;
-  --surface-cream-strong: #e8e0d2;
-  --surface-dark: #181715;
-  --surface-dark-elevated: #252320;
-  --surface-dark-soft: #1f1e1b;
-  --on-dark: #faf9f5;
-  --on-dark-soft: #a09d96;
-  --accent-teal: #5db8a6;
-  --success: #5db872;
-  --error: #c64545;
-
-  --serif: "Copernicus", "Tiempos Headline", Georgia, "Times New Roman", serif;
-  --sans: "StyreneB", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-
+  /* Radii are theme-independent; the palette + fonts live in themes.css,
+     keyed on data-theme / data-mode set on <html>. */
   --r-md: 8px;
   --r-lg: 12px;
   --r-xl: 16px;
@@ -39,6 +15,7 @@ body {
   background: var(--canvas);
   -webkit-font-smoothing: antialiased;
   font-size: 16px;
+  transition: background-color .18s ease, color .18s ease;
 }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
@@ -97,8 +74,8 @@ body {
 .doctor-note {
   margin: 0 16px 10px;
   padding: 10px 12px;
-  background: #fbf3ea;
-  border: 1px solid var(--surface-cream-strong);
+  background: var(--note-bg);
+  border: 1px solid var(--hairline);
   border-left: 3px solid var(--accent-amber);
   border-radius: var(--r-md);
   font-size: 12.5px;
@@ -123,6 +100,39 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Appearance (theme + light/dark) */
+.appearance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--hairline);
+}
+.appearance .palette-icon { font-size: 14px; line-height: 1; }
+.appearance select {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: 6px 8px;
+}
+.mode-toggle {
+  width: 34px; height: 34px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none;
+}
+.mode-toggle:hover { background: var(--surface-card); }
 
 /* Session list */
 .project-group { margin-bottom: 14px; }
@@ -187,11 +197,12 @@ body {
   text-transform: uppercase;
   border-radius: var(--r-pill);
   padding: 1px 7px;
-  border: 1px solid transparent;
+  background: var(--surface-card);
+  border: 1px solid var(--hairline-soft);
 }
-.agent-badge.claude { background: rgba(204,120,92,0.14); color: var(--primary-active); }
-.agent-badge.gemini { background: rgba(93,184,166,0.16); color: #2f7d6f; }
-.agent-badge.copilot { background: rgba(140,138,130,0.16); color: var(--muted); }
+.agent-badge.claude { color: var(--primary); }
+.agent-badge.gemini { color: var(--accent-teal); }
+.agent-badge.copilot { color: var(--muted); }
 
 /* ---- Main / chat -------------------------------------------------------- */
 .main { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--canvas); }
@@ -303,7 +314,7 @@ body {
 .error-line {
   align-self: flex-start;
   color: var(--error);
-  background: #f7e9e6;
+  background: var(--danger-bg);
   border-radius: var(--r-md);
   padding: 10px 14px;
   font-size: 14px;
@@ -352,7 +363,7 @@ body {
 #input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(204,120,92,0.15);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* ---- Buttons ------------------------------------------------------------ */
@@ -369,7 +380,7 @@ body {
   gap: 6px;
   line-height: 1;
 }
-.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
 .btn-primary:hover { background: var(--primary-active); }
 .btn-primary:disabled { background: var(--hairline); color: var(--muted); cursor: default; }
 .btn-secondary { background: var(--canvas); color: var(--ink); border-color: var(--hairline); }
@@ -396,9 +407,9 @@ body {
   width: min(460px, 92vw);
   background: var(--canvas);
   color: var(--ink);
-  box-shadow: 0 20px 60px rgba(20,20,19,0.25);
+  box-shadow: 0 20px 60px var(--shadow);
 }
-.dialog::backdrop { background: rgba(20,20,19,0.35); }
+.dialog::backdrop { background: rgba(0,0,0,0.45); }
 .dialog h2 { font-family: var(--serif); font-weight: 400; font-size: 26px; letter-spacing: -0.5px; margin: 0 0 18px; }
 .field { display: block; margin-bottom: 8px; }
 .field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
@@ -412,7 +423,7 @@ body {
   border-radius: var(--r-md);
   padding: 10px 14px;
 }
-.field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(204,120,92,0.15); }
+.field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 
 .empty { padding: 24px 10px; text-align: center; font-size: 14px; }

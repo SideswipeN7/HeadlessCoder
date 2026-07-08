@@ -1,0 +1,143 @@
+/*
+ * Theme tokens. Each UI style maps to a `data-theme` on <html>, and each style
+ * defines a light and a dark variant selected by `data-mode`. The rest of the
+ * app only ever reads these CSS variables, so switching styles/modes is just a
+ * matter of flipping the two data-attributes (see app.js / the head bootstrap).
+ *
+ * Palettes are derived from the *-DESIGN.md reference docs in the repo root.
+ */
+
+/* ============================ CLAUDE ============================ */
+:root[data-theme="claude"] {
+  --serif: "Copernicus", "Tiempos Headline", Georgia, "Times New Roman", serif;
+  --sans: "StyreneB", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+:root[data-theme="claude"][data-mode="light"] {
+  --primary: #cc785c; --primary-active: #a9583e; --on-primary: #ffffff;
+  --canvas: #faf9f5; --surface-soft: #f5f0e8; --surface-card: #efe9de; --surface-cream-strong: #e8e0d2;
+  --ink: #141413; --body: #3d3d3a; --muted: #6c6a64; --muted-soft: #8e8b82;
+  --hairline: #e6dfd8; --hairline-soft: #ebe6df;
+  --surface-dark: #181715; --surface-dark-elevated: #252320; --surface-dark-soft: #1f1e1b;
+  --on-dark: #faf9f5; --on-dark-soft: #a09d96;
+  --accent-teal: #5db8a6; --accent-amber: #e8a55a; --success: #5db872; --error: #c64545;
+  --focus-ring: rgba(204,120,92,0.15); --danger-bg: #f7e9e6; --note-bg: #fbf3ea; --shadow: rgba(20,20,19,0.25);
+}
+:root[data-theme="claude"][data-mode="dark"] {
+  --primary: #d08a70; --primary-active: #b0654a; --on-primary: #ffffff;
+  --canvas: #1a1918; --surface-soft: #201e1c; --surface-card: #2a2724; --surface-cream-strong: #35312d;
+  --ink: #f5f1ea; --body: #d9d4cb; --muted: #a5a096; --muted-soft: #837e74;
+  --hairline: #35312d; --hairline-soft: #2a2724;
+  --surface-dark: #2a2724; --surface-dark-elevated: #35312d; --surface-dark-soft: #201e1c;
+  --on-dark: #f5f1ea; --on-dark-soft: #a5a096;
+  --accent-teal: #5db8a6; --accent-amber: #e8a55a; --success: #5db872; --error: #e07a6a;
+  --focus-ring: rgba(208,138,112,0.30); --danger-bg: #3a2320; --note-bg: #2f2620; --shadow: rgba(0,0,0,0.5);
+}
+
+/* ============================ GITHUB ============================ */
+:root[data-theme="github"] {
+  --serif: "Mona Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sans: "Mona Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+:root[data-theme="github"][data-mode="light"] {
+  --primary: #0969DA; --primary-active: #0860CA; --on-primary: #ffffff;
+  --canvas: #ffffff; --surface-soft: #F6F8FA; --surface-card: #EAEEF2; --surface-cream-strong: #dde3ea;
+  --ink: #1F2328; --body: #1F2328; --muted: #636C76; --muted-soft: #8b949e;
+  --hairline: #D0D7DE; --hairline-soft: #e6ebf0;
+  --surface-dark: #0d1117; --surface-dark-elevated: #161B22; --surface-dark-soft: #010409;
+  --on-dark: #E6EDF3; --on-dark-soft: #8B949E;
+  --accent-teal: #1a7f37; --accent-amber: #9A6700; --success: #1a7f37; --error: #CF222E;
+  --focus-ring: rgba(9,105,218,0.30); --danger-bg: #ffebe9; --note-bg: #fff8c5; --shadow: rgba(31,35,40,0.20);
+}
+:root[data-theme="github"][data-mode="dark"] {
+  --primary: #2f81f7; --primary-active: #1f6feb; --on-primary: #ffffff;
+  --canvas: #0d1117; --surface-soft: #161B22; --surface-card: #21262D; --surface-cream-strong: #30363d;
+  --ink: #E6EDF3; --body: #c9d1d9; --muted: #8B949E; --muted-soft: #6e7681;
+  --hairline: #30363D; --hairline-soft: #21262d;
+  --surface-dark: #161B22; --surface-dark-elevated: #21262D; --surface-dark-soft: #010409;
+  --on-dark: #E6EDF3; --on-dark-soft: #8B949E;
+  --accent-teal: #3fb950; --accent-amber: #d29922; --success: #3fb950; --error: #f85149;
+  --focus-ring: rgba(47,129,247,0.40); --danger-bg: #3d1518; --note-bg: #272115; --shadow: rgba(0,0,0,0.5);
+}
+
+/* ============================ OPENAI ============================ */
+:root[data-theme="openai"] {
+  --serif: "Söhne", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: "Söhne", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+:root[data-theme="openai"][data-mode="light"] {
+  --primary: #10A37F; --primary-active: #0E9270; --on-primary: #ffffff;
+  --canvas: #FFFFFF; --surface-soft: #F7F7F8; --surface-card: #ECECF1; --surface-cream-strong: #e0e0e6;
+  --ink: #212121; --body: #353740; --muted: #6E6E80; --muted-soft: #8e8ea0;
+  --hairline: #E5E5E5; --hairline-soft: #efefef;
+  --surface-dark: #202123; --surface-dark-elevated: #343541; --surface-dark-soft: #1a1a1c;
+  --on-dark: #ECECF1; --on-dark-soft: #a0a0b0;
+  --accent-teal: #10A37F; --accent-amber: #d9932b; --success: #10A37F; --error: #ef4146;
+  --focus-ring: rgba(16,163,127,0.25); --danger-bg: #fdeceb; --note-bg: #eef7f4; --shadow: rgba(0,0,0,0.15);
+}
+:root[data-theme="openai"][data-mode="dark"] {
+  --primary: #19c37d; --primary-active: #12b072; --on-primary: #ffffff;
+  --canvas: #212121; --surface-soft: #2A2A2A; --surface-card: #343541; --surface-cream-strong: #40414f;
+  --ink: #ECECF1; --body: #d1d1d6; --muted: #8E8EA0; --muted-soft: #6e6e80;
+  --hairline: #3a3a3a; --hairline-soft: #2f2f2f;
+  --surface-dark: #2A2A2A; --surface-dark-elevated: #343541; --surface-dark-soft: #1a1a1a;
+  --on-dark: #ECECF1; --on-dark-soft: #8E8EA0;
+  --accent-teal: #19c37d; --accent-amber: #e0a44a; --success: #19c37d; --error: #ef4146;
+  --focus-ring: rgba(25,195,125,0.30); --danger-bg: #3a1f1f; --note-bg: #17302a; --shadow: rgba(0,0,0,0.5);
+}
+
+/* ============================ OPENCODE ============================ */
+:root[data-theme="opencode"] {
+  --serif: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "Berkeley Mono", ui-monospace, "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+:root[data-theme="opencode"][data-mode="light"] {
+  --primary: #201d1d; --primary-active: #0f0000; --on-primary: #fdfcfc;
+  --canvas: #fdfcfc; --surface-soft: #f8f7f7; --surface-card: #f1eeee; --surface-cream-strong: #e7e3e3;
+  --ink: #201d1d; --body: #424245; --muted: #646262; --muted-soft: #9a9898;
+  --hairline: rgba(15,0,0,0.12); --hairline-soft: rgba(15,0,0,0.07);
+  --surface-dark: #201d1d; --surface-dark-elevated: #302c2c; --surface-dark-soft: #171414;
+  --on-dark: #fdfcfc; --on-dark-soft: #9a9898;
+  --accent-teal: #007aff; --accent-amber: #ff9f0a; --success: #30d158; --error: #ff3b30;
+  --focus-ring: rgba(0,122,255,0.20); --danger-bg: #ffecea; --note-bg: #f1eeee; --shadow: rgba(15,0,0,0.20);
+}
+:root[data-theme="opencode"][data-mode="dark"] {
+  --primary: #007aff; --primary-active: #3391ff; --on-primary: #ffffff;
+  --canvas: #201d1d; --surface-soft: #262323; --surface-card: #302c2c; --surface-cream-strong: #3a3636;
+  --ink: #fdfcfc; --body: #cfcccc; --muted: #9a9898; --muted-soft: #6e6e73;
+  --hairline: rgba(253,252,252,0.14); --hairline-soft: rgba(253,252,252,0.08);
+  --surface-dark: #302c2c; --surface-dark-elevated: #3a3636; --surface-dark-soft: #262323;
+  --on-dark: #fdfcfc; --on-dark-soft: #9a9898;
+  --accent-teal: #4a9eff; --accent-amber: #ff9f0a; --success: #30d158; --error: #ff453a;
+  --focus-ring: rgba(0,122,255,0.35); --danger-bg: #3a1f1e; --note-bg: #2a2626; --shadow: rgba(0,0,0,0.5);
+}
+
+/* ============================ OBSIDIAN ============================ */
+:root[data-theme="obsidian"] {
+  --serif: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: "Fira Code", "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+:root[data-theme="obsidian"][data-mode="light"] {
+  --primary: #7C3AED; --primary-active: #6D28D9; --on-primary: #ffffff;
+  --canvas: #ffffff; --surface-soft: #f7f6fb; --surface-card: #efedf7; --surface-cream-strong: #e4e0f2;
+  --ink: #1c1b22; --body: #3a3942; --muted: #6b6a76; --muted-soft: #908fa0;
+  --hairline: #e2e0ec; --hairline-soft: #ecebf3;
+  --surface-dark: #2A2A2A; --surface-dark-elevated: #303030; --surface-dark-soft: #1a1a1a;
+  --on-dark: #ececec; --on-dark-soft: #b0b0b0;
+  --accent-teal: #7C3AED; --accent-amber: #9A6700; --success: #1a7f37; --error: #d33;
+  --focus-ring: rgba(124,58,237,0.20); --danger-bg: #fbeaef; --note-bg: #f3f0fb; --shadow: rgba(30,30,40,0.18);
+}
+:root[data-theme="obsidian"][data-mode="dark"] {
+  --primary: #7C3AED; --primary-active: #8b56f0; --on-primary: #ffffff;
+  --canvas: #202020; --surface-soft: #262626; --surface-card: #2A2A2A; --surface-cream-strong: #303030;
+  --ink: #DCDCDC; --body: #c2c2c2; --muted: #888888; --muted-soft: #6e6e6e;
+  --hairline: #3D3D3D; --hairline-soft: #303030;
+  --surface-dark: #2A2A2A; --surface-dark-elevated: #303030; --surface-dark-soft: #1a1a1a;
+  --on-dark: #DCDCDC; --on-dark-soft: #888888;
+  --accent-teal: #9580FF; --accent-amber: #e0a44a; --success: #30d158; --error: #ff6b6b;
+  --focus-ring: rgba(124,58,237,0.35); --danger-bg: #3a2030; --note-bg: #1E1E2E; --shadow: rgba(0,0,0,0.5);
+}

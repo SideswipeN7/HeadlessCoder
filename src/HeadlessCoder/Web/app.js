@@ -30,9 +30,48 @@ window.addEventListener("DOMContentLoaded", () => {
     seg.addEventListener("click", () => setGroupMode(seg.dataset.mode));
   }
 
+  initAppearance();
   loadAgents();
   loadSessions();
 });
+
+// ---- Appearance (theme + light/dark) --------------------------------------
+const THEMES = ["claude", "github", "openai", "opencode", "obsidian"];
+
+function initAppearance() {
+  const root = document.documentElement;
+  let theme = root.dataset.theme;
+  if (THEMES.indexOf(theme) < 0) theme = "claude";
+  let mode = root.dataset.mode === "dark" ? "dark" : "light";
+  applyAppearance(theme, mode, false);
+
+  $("themeSelect").value = theme;
+  $("themeSelect").addEventListener("change", (e) =>
+    applyAppearance(e.target.value, currentMode(), true));
+  $("modeToggle").addEventListener("click", () =>
+    applyAppearance(currentTheme(), currentMode() === "dark" ? "light" : "dark", true));
+}
+
+function currentTheme() { return document.documentElement.dataset.theme || "claude"; }
+function currentMode() { return document.documentElement.dataset.mode === "dark" ? "dark" : "light"; }
+
+function applyAppearance(theme, mode, persist) {
+  const root = document.documentElement;
+  root.dataset.theme = theme;
+  root.dataset.mode = mode;
+  $("modeToggle").textContent = mode === "dark" ? "☀️" : "🌙";
+  $("modeToggle").title = mode === "dark" ? "Switch to light" : "Switch to dark";
+  // Keep the browser chrome colour in step with the canvas.
+  const bg = getComputedStyle(root).getPropertyValue("--canvas").trim();
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta && bg) meta.setAttribute("content", bg);
+  if (persist) {
+    try {
+      localStorage.setItem("hc-theme", theme);
+      localStorage.setItem("hc-mode", mode);
+    } catch (e) { /* ignore */ }
+  }
+}
 
 function setGroupMode(mode) {
   if (mode === state.groupMode) return;

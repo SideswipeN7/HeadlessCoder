@@ -46,8 +46,10 @@ streaming responses.
   code straight in the terminal.
 - **Keep-awake.** Launch with `--no-sleep` / `-ns` to stop the host from sleeping while it's
   serving (Windows / macOS / Linux).
+- **Switchable themes + light/dark.** Pick a UI style by name — **Claude**, **GitHub**,
+  **OpenAI**, **opencode**, **Obsidian** — each with a light and dark variant. Your choice is
+  remembered in the browser (`localStorage`) and applied before first paint (no flash).
 - **Single file.** Ships as one self-contained executable — no runtime install required.
-- **Warm by design.** UI built to Anthropic's cream + coral editorial design system.
 
 ## Supported agents
 
@@ -103,6 +105,17 @@ The composer lets you pick how tools are handled per message, mapping to Claude 
 - **Accept edits** (`acceptEdits`) — auto-approve file edits.
 - **Plan** (`plan`) — planning only, no changes.
 - **Bypass (YOLO)** (`bypassPermissions`) — run everything. Use with care.
+
+## Themes & appearance
+
+Use the palette control at the bottom of the sidebar to switch the **UI style** and toggle
+**light/dark**. Both are stored per-browser in `localStorage` (`hc-theme`, `hc-mode`) and
+re-applied before the page paints, so a phone that opened the UI once keeps its look.
+
+Each style is a set of CSS variables in `Web/themes.css`, selected by `data-theme` +
+`data-mode` on `<html>`; palettes are derived from the `*-DESIGN.md` reference docs. To add a
+style, append a `:root[data-theme="mystyle"]` block (with `[data-mode="light"]`/`[dark]`
+variants) and add an `<option>` to the theme picker in `Web/index.html`.
 
 ## Build from source
 
@@ -183,7 +196,7 @@ src/HeadlessCoder/
     ClaudeCliRunner.cs       # spawn claude, stream stream-json
     SessionModels.cs         # DTOs
   Hosting/EmbeddedAssets.cs  # serve embedded web UI (single-file friendly)
-  Web/                       # embedded UI: index.html, styles.css, app.js
+  Web/                       # embedded UI: index.html, styles.css, themes.css, app.js
 ```
 
 ## License
