@@ -51,7 +51,12 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ password }),
         });
-        if (r.ok) { window.location.assign("/hc"); }
+        if (r.ok) {
+          const ret = new URLSearchParams(location.search).get("return");
+          let dest = "/hc";
+          if (ret && ret.startsWith("/")) dest = ret;   // same-origin path only
+          window.location.assign(dest);
+        }
         else { err.textContent = "Incorrect password."; }
       } catch { err.textContent = "Could not reach the server."; }
     });

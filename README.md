@@ -48,8 +48,12 @@ streaming responses.
   serving (Windows / macOS / Linux).
 - **Password out of the box.** Access is protected by a password generated from Transformers
   names (or your own via `--pass`, or off with `--no-pass`). The QR embeds it for one-scan sign-in.
-- **Settings & Help in-app.** A Settings panel shows which agent CLIs are active (with Refresh),
-  and a Help panel explains the controls. Agent groups in the sidebar are collapsible.
+- **Settings modal.** The ⚙️ in the header opens Appearance (color scheme, light/dark, hand-tuned
+  colors), Agents (which CLIs are active, with Refresh), and Help — all in one place.
+- **Markdown replies.** Assistant output renders as Markdown — headings, lists, tables, and code
+  blocks — like Claude Desktop.
+- **Share links.** 🔗 copies a link that reopens the current conversation on any device.
+- **Collapsible groups.** In "By agent" view the agent groups collapse; state is remembered.
 - **Switchable themes + light/dark.** Pick a UI style by name — **Claude**, **GitHub**,
   **OpenAI**, **opencode**, **Obsidian** — each with a light and dark variant. Your choice is
   remembered in the browser (`localStorage`) and applied before first paint (no flash).
@@ -131,6 +135,7 @@ Then open the printed URL (or scan the QR code) on any device on the same networ
 | `-ns`, `--no-sleep` | Prevent the host machine from sleeping while running. |
 | `-np`, `--no-pass` | Serve without a password (open access on your LAN). |
 | `--pass <value>` | Protect access with your own password. |
+| `-fs`, `--free-style` | Allow new sessions in **any** folder (default: only existing projects). |
 | `--port <n>` | Port to serve the web UI on (default `8787`). |
 | `--bind <addr>` | Address Kestrel binds to (default `0.0.0.0` = all interfaces). |
 | `--host <ip>` | LAN IP to advertise in the printed URL/QR (auto-detected otherwise). |

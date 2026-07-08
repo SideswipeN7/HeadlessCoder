@@ -23,6 +23,9 @@ public sealed class CommandLineOptions
     /// <summary>Explicit password to protect access with. When null and not <see cref="NoPass"/>, one is generated.</summary>
     public string? Password { get; init; }
 
+    /// <summary>When true, new sessions may target any folder; otherwise only existing project directories.</summary>
+    public bool FreeStyle { get; init; }
+
     public bool ShowHelp { get; init; }
 
     public static CommandLineOptions Parse(string[] args)
@@ -31,6 +34,7 @@ public sealed class CommandLineOptions
         bool noSleep = false;
         bool help = false;
         bool noPass = false;
+        bool freeStyle = false;
         string bind = "0.0.0.0";
         string? advertise = null;
         string? password = null;
@@ -47,6 +51,10 @@ public sealed class CommandLineOptions
                 case "-np":
                 case "--no-pass":
                     noPass = true;
+                    break;
+                case "-fs":
+                case "--free-style":
+                    freeStyle = true;
                     break;
                 case "-h":
                 case "-?":
@@ -93,6 +101,7 @@ public sealed class CommandLineOptions
             AdvertiseHost = advertise,
             NoPass = noPass,
             Password = password,
+            FreeStyle = freeStyle,
         };
     }
 
@@ -108,6 +117,7 @@ public sealed class CommandLineOptions
           -ns, --no-sleep     Prevent the host machine from going to sleep while running.
           -np, --no-pass      Serve without a password (open access on your LAN).
               --pass <value>  Protect access with your own password.
+          -fs, --free-style   Allow new sessions in ANY folder (not just existing projects).
               --port <n>      Port to serve the web UI on (default: 8787).
               --bind <addr>   Address Kestrel binds to (default: 0.0.0.0 = all interfaces).
               --host <ip>     LAN IP to advertise in the printed URL/QR (auto-detected otherwise).

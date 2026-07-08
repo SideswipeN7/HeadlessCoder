@@ -77,7 +77,9 @@ if (authEnabled)
             await ctx.Response.WriteAsJsonAsync(new { error = "unauthorized" });
             return;
         }
-        ctx.Response.Redirect("/hc/login");
+        // Preserve the target (e.g. a shared ?s= deep link) across login.
+        string ret = Uri.EscapeDataString(ctx.Request.Path + ctx.Request.QueryString);
+        ctx.Response.Redirect($"/hc/login?return={ret}");
     });
 }
 
@@ -113,6 +115,7 @@ app.MapGet("/api/health", (AgentRegistry reg) => Results.Json(new
     ok = true,
     anyAgent = reg.Diagnose().AnyAgentAvailable,
     auth = authEnabled,
+    freeStyle = options.FreeStyle,
 }, jsonOpts));
 
 // Preflight / doctor: what's installed and what to do about what isn't.
@@ -164,6 +167,19 @@ app.MapPost("/api/message", async (HttpContext ctx, AgentRegistry reg) =>
     req.IsNewSession = isNew;
     if (isNew)
         req.SessionId = Guid.NewGuid().ToString();
+
+    // Without --free-style, new sessions are restricted to existing project folders.
+    if (isNew && !options.FreeStyle)
+    {
+        var known = reg.ListWorkingDirectories();
+        bool allowed = known.Any(d => string.Equals(d, req.Cwd, StringComparison.OrdinalIgnoreCase));
+        if (!allowed)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await ctx.Response.WriteAsync("folder not allowed (start with --free-style to use any folder)");
+            return;
+        }
+    }
 
     ctx.Response.Headers.CacheControl = "no-cache";
     ctx.Response.Headers.Connection = "keep-alive";

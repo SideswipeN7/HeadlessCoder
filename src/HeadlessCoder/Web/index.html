@@ -53,24 +53,6 @@
         <div class="empty muted">Loading sessions…</div>
       </div>
 
-      <div class="appearance">
-        <span class="palette-icon" aria-hidden="true">🎨</span>
-        <select id="themeSelect" aria-label="UI style">
-          <option value="claude">Claude</option>
-          <option value="github">GitHub</option>
-          <option value="openai">OpenAI</option>
-          <option value="opencode">opencode</option>
-          <option value="obsidian">Obsidian</option>
-        </select>
-        <button class="mode-toggle" id="modeToggle" aria-label="Toggle light/dark">🌙</button>
-        <button class="mode-toggle" id="customizeBtn" aria-label="Customize colors" title="Customize colors">🎚️</button>
-      </div>
-
-      <div class="tools-row">
-        <button class="tool-btn" id="settingsBtn">⚙️ Settings</button>
-        <button class="tool-btn" id="helpBtn">❓ Help</button>
-      </div>
-
       <footer class="sidebar-foot muted" id="statusFoot">connecting…</footer>
     </aside>
 
@@ -82,7 +64,11 @@
           <div class="chat-title" id="chatTitle">Select a session</div>
           <div class="chat-sub muted" id="chatSub"></div>
         </div>
-        <button class="icon-btn" id="refreshBtn" aria-label="Refresh" title="Refresh">⟳</button>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="shareBtn" aria-label="Copy share link" title="Copy share link" hidden>🔗</button>
+          <button class="icon-btn" id="refreshBtn" aria-label="Refresh" title="Refresh">⟳</button>
+          <button class="icon-btn" id="gearBtn" aria-label="Settings" title="Settings">⚙️</button>
+        </div>
       </header>
 
       <section class="transcript" id="transcript">
@@ -130,14 +116,15 @@
       <h2>New session</h2>
       <label class="field">
         <span>Agent</span>
-        <select id="newAgent"></select>
+        <select id="newAgent" class="styled-select"></select>
       </label>
       <label class="field">
         <span>Working directory</span>
-        <input list="projectPaths" id="newCwd" placeholder="E:\path\to\project" autocomplete="off" />
+        <select id="newCwdSelect" class="styled-select"></select>
+        <input list="projectPaths" id="newCwd" placeholder="E:\path\to\project" autocomplete="off" hidden />
         <datalist id="projectPaths"></datalist>
       </label>
-      <p class="muted small">Pick an existing project or type any folder path on the host machine.</p>
+      <p class="muted small" id="newCwdHint">Pick one of your existing projects.</p>
       <div class="dialog-actions">
         <button value="cancel" class="btn btn-secondary" type="submit" formnovalidate>Cancel</button>
         <button value="ok" class="btn btn-primary" id="newOkBtn" type="submit">Start</button>
@@ -145,62 +132,84 @@
     </form>
   </dialog>
 
-  <!-- Settings: which agent CLIs are active -->
-  <dialog id="settingsDialog" class="dialog">
+  <!-- Unified settings modal: appearance (colors + light/dark) · agents · help -->
+  <dialog id="settingsDialog" class="dialog settings-modal">
     <form method="dialog">
       <div class="dialog-head">
         <h2>Settings</h2>
-        <button type="button" class="btn btn-secondary btn-sm" id="agentsRefresh">⟳ Refresh</button>
+        <button value="ok" class="icon-btn" type="submit" aria-label="Close">✕</button>
       </div>
-      <p class="muted small">Agent CLIs detected on the host. Refresh after installing one.</p>
-      <div id="agentsList" class="agents-list"></div>
-      <div class="settings-meta muted small" id="accessInfo"></div>
-      <div class="dialog-actions">
-        <button value="ok" class="btn btn-primary" type="submit">Done</button>
+
+      <div class="tabs" id="settingsTabs">
+        <button type="button" class="tab active" data-tab="appearance">Appearance</button>
+        <button type="button" class="tab" data-tab="agents">Agents</button>
+        <button type="button" class="tab" data-tab="help">Help</button>
+      </div>
+
+      <!-- Appearance -->
+      <div class="tab-panel active" data-panel="appearance">
+        <label class="field">
+          <span>Color scheme</span>
+          <select id="themeSelect" class="styled-select">
+            <option value="claude">Claude</option>
+            <option value="github">GitHub</option>
+            <option value="openai">OpenAI</option>
+            <option value="opencode">opencode</option>
+            <option value="obsidian">Obsidian</option>
+          </select>
+        </label>
+
+        <div class="field">
+          <span>Mode</span>
+          <div class="mode-seg" id="modeSeg">
+            <button type="button" class="seg" data-mode="light">☀️ Light</button>
+            <button type="button" class="seg" data-mode="dark">🌙 Dark</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-head">Custom colors
+            <button type="button" class="link-btn" id="customReset">Reset to scheme</button>
+          </span>
+          <div class="custom-grid" id="customFields"></div>
+        </div>
+      </div>
+
+      <!-- Agents -->
+      <div class="tab-panel" data-panel="agents">
+        <div class="panel-head">
+          <p class="muted small">Agent CLIs detected on the host. Refresh after installing one.</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="agentsRefresh">⟳ Refresh</button>
+        </div>
+        <div id="agentsList" class="agents-list"></div>
+        <div class="settings-meta muted small" id="accessInfo"></div>
+      </div>
+
+      <!-- Help -->
+      <div class="tab-panel" data-panel="help">
+        <div class="help-body">
+          <p><b>HeadlessCoder</b> lets you drive coding-agent CLIs on this machine from any
+             device on your network.</p>
+          <ul>
+            <li><b>Sessions</b> — the left list shows every session. Group them
+                <b>Recent</b> or <b>By agent</b> (agent groups collapse when you tap the header).</li>
+            <li><b>New session</b> — pick an agent + working directory, then chat. Claude sessions
+                resume; Gemini/Copilot run one-shot.</li>
+            <li><b>Share</b> — 🔗 in the header copies a link that opens the current conversation.</li>
+            <li><b>Permission mode</b> — <i>Ask</i> skips tools needing approval, <i>Accept edits</i>
+                auto-approves file edits, <i>Plan</i> makes no changes, <i>Bypass</i> runs everything.</li>
+            <li><b>Send</b> — Enter sends, Shift+Enter for a newline. Replies render as Markdown.</li>
+            <li><b>Appearance</b> — switch color scheme, light/dark, and hand-tune colors here.
+                All saved in this browser.</li>
+          </ul>
+          <p class="muted small">CLI flags: <code>--no-sleep</code>, <code>--pass</code>,
+             <code>--no-pass</code>, <code>--free-style</code>, <code>--port</code>, <code>--help</code>.</p>
+        </div>
       </div>
     </form>
   </dialog>
 
-  <!-- Help -->
-  <dialog id="helpDialog" class="dialog">
-    <form method="dialog">
-      <h2>Help</h2>
-      <div class="help-body">
-        <p><b>HeadlessCoder</b> lets you drive coding-agent CLIs on this machine from any
-           device on your network.</p>
-        <ul>
-          <li><b>Sessions</b> — the left list shows every session. Group them
-              <b>Recent</b> or <b>By agent</b> (agent groups collapse when you tap the header).</li>
-          <li><b>New session</b> — pick an agent + working directory, then chat. Claude sessions
-              resume; Gemini/Copilot run one-shot.</li>
-          <li><b>Permission mode</b> — <i>Ask</i> skips tools needing approval, <i>Accept edits</i>
-              auto-approves file edits, <i>Plan</i> makes no changes, <i>Bypass</i> runs everything.</li>
-          <li><b>Send</b> — Enter sends, Shift+Enter for a newline.</li>
-          <li><b>Themes</b> — 🎨 switches style, 🌙 toggles light/dark, 🎚️ edits colors by hand.
-              All saved in this browser.</li>
-          <li><b>Settings</b> — ⚙️ shows which agent CLIs are active, with a refresh.</li>
-        </ul>
-        <p class="muted small">CLI flags: <code>--no-sleep</code>, <code>--pass</code>,
-           <code>--no-pass</code>, <code>--port</code>, <code>--help</code>.</p>
-      </div>
-      <div class="dialog-actions">
-        <button value="ok" class="btn btn-primary" type="submit">Close</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- Manual colour customizer -->
-  <dialog id="customizeDialog" class="dialog">
-    <form method="dialog">
-      <h2>Customize colors</h2>
-      <p class="muted small">Editing <b id="customCtx"></b>. Changes are saved in this browser.</p>
-      <div class="custom-grid" id="customFields"></div>
-      <div class="dialog-actions">
-        <button value="reset" class="btn btn-secondary" id="customReset" type="button">Reset to theme</button>
-        <button value="ok" class="btn btn-primary" type="submit">Done</button>
-      </div>
-    </form>
-  </dialog>
+  <div id="toast" class="toast" hidden></div>
 
   <script src="/hc/app.js"></script>
 </body>

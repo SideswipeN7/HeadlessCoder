@@ -9,7 +9,8 @@ const state = {
   agents: [],         // AgentDescriptor[]
   sessions: [],       // cached last session list
   groupMode: "recent", // "recent" | "agent"
-  collapsed: new Set() // collapsed group keys
+  collapsed: new Set(), // collapsed group keys
+  config: {}           // { auth, freeStyle } from /api/health
 };
 
 const $ = (id) => document.getElementById(id);
@@ -31,15 +32,32 @@ window.addEventListener("DOMContentLoaded", () => {
     seg.addEventListener("click", () => setGroupMode(seg.dataset.mode));
   }
 
-  $("settingsBtn").addEventListener("click", openSettings);
-  $("helpBtn").addEventListener("click", () => $("helpDialog").showModal());
+  $("gearBtn").addEventListener("click", () => openSettings());
+  $("shareBtn").addEventListener("click", shareCurrent);
   $("agentsRefresh").addEventListener("click", refreshAgents);
+  for (const tab of document.querySelectorAll("#settingsTabs .tab"))
+    tab.addEventListener("click", () => switchTab(tab.dataset.tab));
 
   loadCollapsed();
   initAppearance();
+  loadConfig();
   loadAgents();
-  loadSessions();
+  loadSessions().then(applyDeepLink);
 });
+
+// ---- Config (health) -------------------------------------------------------
+async function loadConfig() {
+  try { state.config = await (await fetch("/api/health")).json(); }
+  catch { state.config = {}; }
+}
+
+// ---- Settings tabs ---------------------------------------------------------
+function switchTab(name) {
+  for (const t of document.querySelectorAll("#settingsTabs .tab"))
+    t.classList.toggle("active", t.dataset.tab === name);
+  for (const p of document.querySelectorAll(".tab-panel"))
+    p.classList.toggle("active", p.dataset.panel === name);
+}
 
 // ---- Collapsible groups ----------------------------------------------------
 function loadCollapsed() {
@@ -53,10 +71,14 @@ function toggleCollapsed(key, groupEl) {
   try { localStorage.setItem("hc-collapsed", JSON.stringify([...state.collapsed])); } catch { /* ignore */ }
 }
 
-// ---- Settings dialog -------------------------------------------------------
-function openSettings() {
+// ---- Settings modal --------------------------------------------------------
+function openSettings(tab) {
+  $("themeSelect").value = currentTheme();
+  updateModeSeg();
+  populateCustomFields();
   renderAgentsList();
   renderAccessInfo();
+  if (tab) switchTab(tab); else switchTab("appearance");
   $("settingsDialog").showModal();
 }
 function renderAgentsList() {
@@ -137,25 +159,33 @@ function initAppearance() {
   applyAppearance(theme, mode, false);
 
   $("themeSelect").value = theme;
-  $("themeSelect").addEventListener("change", (e) =>
-    applyAppearance(e.target.value, currentMode(), true));
-  $("modeToggle").addEventListener("click", () =>
-    applyAppearance(currentTheme(), currentMode() === "dark" ? "light" : "dark", true));
-
-  $("customizeBtn").addEventListener("click", openCustomizeDialog);
+  $("themeSelect").addEventListener("change", (e) => {
+    applyAppearance(e.target.value, currentMode(), true);
+    populateCustomFields();
+  });
+  for (const seg of document.querySelectorAll("#modeSeg .seg"))
+    seg.addEventListener("click", () => {
+      applyAppearance(currentTheme(), seg.dataset.mode, true);
+      populateCustomFields();
+    });
   $("customReset").addEventListener("click", resetCustom);
 }
 
 function currentTheme() { return document.documentElement.dataset.theme || "claude"; }
 function currentMode() { return document.documentElement.dataset.mode === "dark" ? "dark" : "light"; }
 
+function updateModeSeg() {
+  const mode = currentMode();
+  for (const seg of document.querySelectorAll("#modeSeg .seg"))
+    seg.classList.toggle("active", seg.dataset.mode === mode);
+}
+
 function applyAppearance(theme, mode, persist) {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.dataset.mode = mode;
   applyOverrides(theme, mode);
-  $("modeToggle").textContent = mode === "dark" ? "☀️" : "🌙";
-  $("modeToggle").title = mode === "dark" ? "Switch to light" : "Switch to dark";
+  updateModeSeg();
   // Keep the browser chrome colour in step with the canvas.
   const bg = getComputedStyle(root).getPropertyValue("--canvas").trim();
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -187,7 +217,7 @@ function applyOverrides(theme, mode) {
     if (k.indexOf("--") === 0) root.style.setProperty(k, over[k]);
 }
 
-function openCustomizeDialog() {
+function populateCustomFields() {
   const wrap = $("customFields");
   wrap.innerHTML = "";
   const cs = getComputedStyle(document.documentElement);
@@ -202,9 +232,6 @@ function openCustomizeDialog() {
     input.addEventListener("input", () => setCustomVar(tok.v, input.value));
     wrap.appendChild(field);
   }
-
-  $("customCtx").textContent = `${agentThemeName(currentTheme())} · ${currentMode()}`;
-  $("customizeDialog").showModal();
 }
 
 function setCustomVar(name, value) {
@@ -226,7 +253,7 @@ function resetCustom() {
   delete all[customKey()];
   saveCustom(all);
   applyOverrides(currentTheme(), currentMode());
-  openCustomizeDialog(); // repopulate inputs from the base theme values
+  populateCustomFields(); // repopulate inputs from the base scheme values
 }
 
 function agentThemeName(id) {
@@ -418,8 +445,57 @@ async function openSession(sess) {
   $("chatSub").textContent = `${agentName(sess.provider)} · ${shortenPath(sess.cwd)}`;
   $("cwdChip").textContent = shortenPath(sess.cwd);
   $("composer").hidden = false;
+  $("shareBtn").hidden = !sess.id;   // only saved sessions have a stable link
   app.classList.add("show-chat");
   await loadTranscript(sess);
+}
+
+// ---- Share links -----------------------------------------------------------
+function shareCurrent() {
+  const s = state.current;
+  if (!s || !s.id) return;
+  const link = `${location.origin}/hc?s=${encodeURIComponent(s.provider + ":" + s.project + ":" + s.id)}`;
+  copyText(link).then(
+    () => showToast("Share link copied to clipboard"),
+    () => showToast(link)
+  );
+}
+
+function applyDeepLink() {
+  const raw = new URLSearchParams(location.search).get("s");
+  if (!raw) return;
+  // Clean the URL so a refresh doesn't keep reopening.
+  history.replaceState(null, "", "/hc");
+  const [provider, project, id] = raw.split(":");
+  if (!provider || !id) return;
+  const found = state.sessions.find((x) => x.id === id && (x.provider || "claude") === provider);
+  if (found)
+    openSession({ provider, project: found.projectId, id, cwd: found.cwd, title: found.title });
+  else
+    openSession({ provider, project, id, cwd: "", title: "Shared session" });
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    return navigator.clipboard.writeText(text);
+  return new Promise((resolve, reject) => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+      resolve();
+    } catch (e) { reject(e); }
+  });
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
 async function loadTranscript(sess) {
@@ -593,7 +669,8 @@ function addAssistantBubble(text) {
   wrap.innerHTML = `<div class="msg-role"></div>`;
   wrap.querySelector(".msg-role").textContent = state.current ? agentName(state.current.provider) : "Assistant";
   const body = document.createElement("div");
-  body.textContent = text;
+  body.className = "md";
+  body.innerHTML = renderMarkdown(text);
   wrap.appendChild(body);
   $("transcript").appendChild(wrap);
 }
@@ -650,7 +727,9 @@ function endLive() {
 }
 function finalizeAssistantText(text) {
   if (state.liveEl) {
-    state.liveEl.textContent = text;
+    // Replace the plain streamed text with rendered Markdown.
+    state.liveEl.classList.add("md");
+    state.liveEl.innerHTML = renderMarkdown(text);
     state.liveEl.parentElement.classList.remove("live");
     state.liveEl = null;
   } else {
@@ -661,12 +740,38 @@ function finalizeAssistantText(text) {
 // ---- New session dialog ----------------------------------------------------
 function openNewDialog() {
   renderAgentPicker();
-  if (state.current) {
-    $("newCwd").value = state.current.cwd;
-    if (state.current.provider) $("newAgent").value = state.current.provider;
+  const freeStyle = !!state.config.freeStyle;
+  const input = $("newCwd");
+  const select = $("newCwdSelect");
+  const preferred = state.current ? state.current.cwd : (state.projects[0]?.path || "");
+
+  if (freeStyle) {
+    // Any folder: free-text input with project suggestions.
+    input.hidden = false;
+    select.hidden = true;
+    input.value = preferred;
+    $("newCwdHint").textContent = "Type any folder path on the host machine, or pick a project.";
   } else {
-    $("newCwd").value = state.projects[0]?.path || "";
+    // Restricted: a dropdown of existing project directories.
+    input.hidden = true;
+    select.hidden = false;
+    select.innerHTML = "";
+    for (const p of state.projects) {
+      const o = document.createElement("option");
+      o.value = p.path; o.textContent = p.path;
+      select.appendChild(o);
+    }
+    if (!state.projects.length) {
+      const o = document.createElement("option");
+      o.value = ""; o.textContent = "No existing projects — start with --free-style";
+      o.disabled = true;
+      select.appendChild(o);
+    }
+    if (state.projects.some((p) => p.path === preferred)) select.value = preferred;
+    $("newCwdHint").textContent = "Pick one of your existing projects (start with --free-style for any folder).";
   }
+
+  if (state.current && state.current.provider) $("newAgent").value = state.current.provider;
   $("newDialog").showModal();
 }
 function renderProjectDatalist(projects) {
@@ -681,7 +786,8 @@ function renderProjectDatalist(projects) {
 function onNewSubmit(e) {
   const btn = e.submitter;
   if (!btn || btn.value !== "ok") return;
-  const cwd = $("newCwd").value.trim();
+  const freeStyle = !!state.config.freeStyle;
+  const cwd = (freeStyle ? $("newCwd").value : $("newCwdSelect").value).trim();
   const provider = $("newAgent").value || "claude";
   if (!cwd) { e.preventDefault(); return; }
   openSession({ provider, project: null, id: null, cwd, title: "New session" });
@@ -723,4 +829,94 @@ function relTime(iso) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+// ---- Minimal, safe Markdown renderer --------------------------------------
+// Everything is HTML-escaped before any markup is added, so agent output cannot
+// inject HTML. Supports headings, lists, code (inline + fenced), blockquotes,
+// tables, bold/italic/strike, links and horizontal rules.
+function renderMarkdown(src) {
+  if (!src) return "";
+  src = String(src).replace(/\r\n?/g, "\n");
+
+  // Pull fenced code blocks out first (escaped, protected from inline rules).
+  const blocks = [];
+  src = src.replace(/```[^\n`]*\n([\s\S]*?)```/g, (_m, code) => {
+    blocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
+    return ` CB${blocks.length - 1} `;
+  });
+
+  const lines = src.split("\n");
+  let html = "", i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    let m;
+
+    if ((m = line.match(/^ CB(\d+) $/))) { html += blocks[+m[1]]; i++; continue; }
+    if (/^\s*$/.test(line)) { i++; continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { html += "<hr/>"; i++; continue; }
+    if ((m = line.match(/^(#{1,4})\s+(.*)$/))) { html += `<h${m[1].length}>${mdInline(m[2].trim())}</h${m[1].length}>`; i++; continue; }
+
+    if (/^\s*>\s?/.test(line)) {
+      const buf = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) { buf.push(lines[i].replace(/^\s*>\s?/, "")); i++; }
+      html += `<blockquote>${renderMarkdown(buf.join("\n"))}</blockquote>`;
+      continue;
+    }
+
+    if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
+      const ordered = /^\s*\d+\.\s+/.test(line);
+      const tag = ordered ? "ol" : "ul";
+      let out = `<${tag}>`;
+      while (i < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[i])) {
+        out += `<li>${mdInline(lines[i].replace(/^\s*([-*+]|\d+\.)\s+/, ""))}</li>`;
+        i++;
+      }
+      html += out + `</${tag}>`;
+      continue;
+    }
+
+    // Tables: header row followed by a |---|---| separator.
+    if (line.indexOf("|") >= 0 && i + 1 < lines.length && /^\s*\|?[\s:-]*-[\s:|-]*$/.test(lines[i + 1]) && lines[i + 1].indexOf("|") >= 0) {
+      const row = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+      const headers = row(line);
+      i += 2;
+      let out = `<table><thead><tr>${headers.map((h) => `<th>${mdInline(h)}</th>`).join("")}</tr></thead><tbody>`;
+      while (i < lines.length && lines[i].indexOf("|") >= 0 && !/^\s*$/.test(lines[i])) {
+        out += `<tr>${row(lines[i]).map((c) => `<td>${mdInline(c)}</td>`).join("")}</tr>`;
+        i++;
+      }
+      html += out + "</tbody></table>";
+      continue;
+    }
+
+    // Paragraph.
+    const para = [];
+    while (i < lines.length && !/^\s*$/.test(lines[i]) &&
+      !/^(#{1,4})\s/.test(lines[i]) && !/^\s*>/.test(lines[i]) &&
+      !/^\s*([-*+]|\d+\.)\s+/.test(lines[i]) && !/^ CB\d+ $/.test(lines[i]) &&
+      !/^\s*([-*_])(\s*\1){2,}\s*$/.test(lines[i])) {
+      para.push(lines[i]); i++;
+    }
+    html += `<p>${mdInline(para.join("\n")).replace(/\n/g, "<br/>")}</p>`;
+  }
+
+  return html.replace(/ CB(\d+) /g, (_m, n) => blocks[+n] || "");
+}
+
+function mdInline(t) {
+  t = escapeHtml(t);
+  const codes = [];
+  t = t.replace(/`([^`]+)`/g, (_m, c) => { codes.push(c); return `${codes.length - 1}`; });
+  t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, txt, url) => {
+    const safe = /^(https?:|mailto:|\/)/i.test(url) ? url : "#";
+    return `<a href="${safe}" target="_blank" rel="noopener noreferrer">${txt}</a>`;
+  });
+  t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  t = t.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  t = t.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+  t = t.replace(/(\d+)/g, (_m, n) => `<code>${codes[+n]}</code>`);
+  return t;
 }
