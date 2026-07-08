@@ -56,7 +56,7 @@ var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 // About / update-check.
 const string ghRepo = "SideswipeN7/HeadlessCoder";
 string appVersion = Assembly.GetExecutingAssembly().GetName().Version is { } ver
-    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.0.0";
+    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.0.1";
 var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
 // ---- Access control ----------------------------------------------------------
