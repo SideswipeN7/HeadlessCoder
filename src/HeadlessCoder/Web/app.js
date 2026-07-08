@@ -41,6 +41,7 @@ window.addEventListener("DOMContentLoaded", () => {
   $("renameForm").addEventListener("submit", onRenameSubmit);
   $("chatTitle").addEventListener("dblclick", openRename);
   $("agentsRefresh").addEventListener("click", refreshAgents);
+  $("checkUpdateBtn").addEventListener("click", checkForUpdate);
   for (const tab of document.querySelectorAll("#settingsTabs .tab"))
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
 
@@ -91,8 +92,52 @@ function openSettings(tab) {
   populateCustomFields();
   renderAgentsList();
   renderAccessInfo();
+  renderAbout();
   if (tab) switchTab(tab); else switchTab("appearance");
   $("settingsDialog").showModal();
+}
+
+// ---- About / updates -------------------------------------------------------
+async function renderAbout() {
+  try {
+    const a = await (await fetch("/api/about")).json();
+    $("aboutVersion").textContent = "v" + a.version;
+    $("aboutMeta").textContent = `.NET ${a.runtime} · ${a.os}`;
+    $("aboutRepo").href = a.repoUrl;
+  } catch { $("aboutVersion").textContent = ""; }
+}
+
+async function checkForUpdate() {
+  const btn = $("checkUpdateBtn");
+  const res = $("updateResult");
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = "Checking…";
+  res.textContent = "";
+  res.classList.remove("update-avail");
+  try {
+    const u = await (await fetch("/api/update-check")).json();
+    if (u.error) {
+      res.textContent = "⚠ " + u.error;
+    } else if (u.updateAvailable) {
+      res.classList.add("update-avail");
+      res.textContent = `New version ${u.latest} available — `;
+      const link = document.createElement("a");
+      link.href = u.url || "#";
+      link.target = "_blank"; link.rel = "noopener noreferrer";
+      link.className = "text-link";
+      link.textContent = "download ↗";
+      res.appendChild(link);
+    } else if (u.note) {
+      res.textContent = u.note;
+    } else {
+      res.textContent = `You're on the latest version (v${u.current}).`;
+    }
+  } catch {
+    res.textContent = "⚠ Update check failed.";
+  }
+  btn.textContent = label;
+  btn.disabled = false;
 }
 function renderAgentsList() {
   const wrap = $("agentsList");

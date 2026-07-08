@@ -1,3 +1,5 @@
+using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -50,6 +52,12 @@ builder.Services.AddSingleton<SessionTitleStore>(_ => new SessionTitleStore());
 
 var app = builder.Build();
 var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+// About / update-check.
+const string ghRepo = "SideswipeN7/HeadlessCoder";
+string appVersion = Assembly.GetExecutingAssembly().GetName().Version is { } ver
+    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.0.0";
+var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
 // ---- Access control ----------------------------------------------------------
 // A valid `?key=<password>` (as embedded in the QR) or the login form sets a
@@ -126,6 +134,46 @@ app.MapGet("/api/health", (AgentRegistry reg) => Results.Json(new
     freeStyle = options.FreeStyle,
     noHistory = options.NoHistory,
 }, jsonOpts));
+
+// About: version + repo.
+app.MapGet("/api/about", () => Results.Json(new
+{
+    name = "HeadlessCoder",
+    version = appVersion,
+    repo = ghRepo,
+    repoUrl = $"https://github.com/{ghRepo}",
+    runtime = Environment.Version.ToString(),
+    os = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+}, jsonOpts));
+
+// Check GitHub Releases for a newer version.
+app.MapGet("/api/update-check", async (HttpContext ctx) =>
+{
+    try
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get,
+            $"https://api.github.com/repos/{ghRepo}/releases/latest");
+        req.Headers.UserAgent.ParseAdd("HeadlessCoder-update-check");
+        req.Headers.Accept.ParseAdd("application/vnd.github+json");
+        using var resp = await http.SendAsync(req, ctx.RequestAborted);
+
+        if (resp.StatusCode == HttpStatusCode.NotFound)
+            return Results.Json(new { current = appVersion, latest = (string?)null, updateAvailable = false,
+                url = (string?)null, note = "No releases published yet." }, jsonOpts);
+
+        resp.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ctx.RequestAborted));
+        var root = doc.RootElement;
+        string? tag = root.TryGetProperty("tag_name", out var t) ? t.GetString() : null;
+        string? url = root.TryGetProperty("html_url", out var u) ? u.GetString() : null;
+        bool available = IsNewer(appVersion, tag);
+        return Results.Json(new { current = appVersion, latest = tag, updateAvailable = available, url }, jsonOpts);
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { current = appVersion, error = "Could not reach GitHub: " + ex.Message }, jsonOpts);
+    }
+});
 
 // Preflight / doctor: what's installed and what to do about what isn't.
 app.MapGet("/api/agents", (AgentRegistry reg) => Results.Json(reg.Diagnose().Agents, jsonOpts));
@@ -285,6 +333,22 @@ static async Task WriteSse(HttpContext ctx, string @event, string data)
     sb.Append('\n');
     await ctx.Response.WriteAsync(sb.ToString(), ctx.RequestAborted);
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+}
+
+// True when the release tag (e.g. "v1.2.0") is a higher version than the running app.
+static bool IsNewer(string current, string? tag)
+{
+    if (string.IsNullOrWhiteSpace(tag)) return false;
+    string t = tag.TrimStart('v', 'V').Trim();
+    return Version.TryParse(Pad(current), out var cv) &&
+           Version.TryParse(Pad(t), out var lv) && lv > cv;
+
+    static string Pad(string v)
+    {
+        // Version.TryParse needs at least major.minor.
+        var parts = v.Split('-', '+')[0]; // drop pre-release / build metadata
+        return parts.Contains('.') ? parts : parts + ".0";
+    }
 }
 
 static bool FixedEquals(string a, string b)

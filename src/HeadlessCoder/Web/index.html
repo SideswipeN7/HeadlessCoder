@@ -162,6 +162,7 @@
         <button type="button" class="tab active" data-tab="appearance">Appearance</button>
         <button type="button" class="tab" data-tab="agents">Agents</button>
         <button type="button" class="tab" data-tab="help">Help</button>
+        <button type="button" class="tab" data-tab="about">About</button>
       </div>
 
       <!-- Appearance -->
@@ -201,6 +202,21 @@
         </div>
         <div id="agentsList" class="agents-list"></div>
         <div class="settings-meta muted small" id="accessInfo"></div>
+      </div>
+
+      <!-- About -->
+      <div class="tab-panel" data-panel="about">
+        <div class="about">
+          <img src="/hc/logo.svg" class="about-logo" alt="" />
+          <div class="about-name">HeadlessCoder</div>
+          <div class="about-version" id="aboutVersion">v…</div>
+          <p class="muted small" id="aboutMeta"></p>
+          <a class="text-link" id="aboutRepo" href="#" target="_blank" rel="noopener noreferrer">GitHub repository ↗</a>
+          <div class="about-update">
+            <button type="button" class="btn btn-secondary btn-sm" id="checkUpdateBtn">Check for updates</button>
+            <div class="update-result muted small" id="updateResult"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Help -->

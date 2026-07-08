@@ -53,7 +53,9 @@ streaming responses.
 - **Password out of the box.** Access is protected by a password generated from Transformers
   names (or your own via `--pass`, or off with `--no-pass`). The QR embeds it for one-scan sign-in.
 - **Settings modal.** The ⚙️ in the header opens Appearance (color scheme, light/dark, hand-tuned
-  colors), Agents (which CLIs are active, with Refresh), and Help — all in one place.
+  colors), Agents (which CLIs are active, with Refresh), Help, and About — all in one place.
+- **About + update check.** The About tab shows the version and can check GitHub Releases for a
+  newer one.
 - **Markdown replies.** Assistant output renders as Markdown — headings, lists, tables, and code
   blocks — like Claude Desktop. Tool calls show a summary + pretty-printed input.
 - **Rename sessions.** ✎ (or double-click the title) gives a session a custom name, stored

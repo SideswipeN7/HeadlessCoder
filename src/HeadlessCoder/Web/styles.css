@@ -586,6 +586,17 @@ body {
 .agent-state.missing { color: var(--muted-soft); }
 .settings-meta { border-top: 1px solid var(--hairline); padding-top: 12px; }
 
+/* About */
+.about { text-align: center; padding: 12px 8px 4px; }
+.about-logo { height: 56px; width: auto; margin: 0 auto 12px; display: block; }
+:root[data-mode="dark"] .about-logo { filter: invert(1); }
+.about-name { font-family: var(--serif); font-size: 24px; color: var(--ink); letter-spacing: -0.4px; }
+.about-version { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 2px; }
+.about p { margin: 10px 0; }
+.about-update { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.update-result { min-height: 18px; }
+.update-result.update-avail { color: var(--primary); font-weight: 500; }
+
 /* Help */
 .help-body { font-size: 14px; line-height: 1.55; }
 .help-body ul { padding-left: 18px; margin: 12px 0; }
