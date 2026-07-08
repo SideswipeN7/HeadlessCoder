@@ -46,6 +46,13 @@ window.addEventListener("DOMContentLoaded", () => {
   loadConfig();
   loadAgents();
   loadSessions().then(applyDeepLink);
+
+  // Discard in-private transcripts when the page goes away.
+  window.addEventListener("pagehide", () => {
+    const gone = [...state.minimized];
+    if (state.current && state.current.private) gone.push(state.current);
+    for (const s of gone) purgePrivate(s);
+  });
 });
 
 // ---- Config (health) -------------------------------------------------------
@@ -428,6 +435,13 @@ function sessionItem(s, showAgent) {
 
 // ---- Open / render a session ----------------------------------------------
 async function openSession(sess) {
+  // Leaving an in-private session that wasn't minimized discards its history.
+  const prev = state.current;
+  if (prev && prev.private && prev.id &&
+      !(sess && sess.id === prev.id && sess.provider === prev.provider) &&
+      !state.minimized.some((m) => m.id === prev.id && m.provider === prev.provider)) {
+    purgePrivate(prev);
+  }
   state.current = sess;
   markActive();
   $("chatTitle").textContent = sess.title || "Session";
@@ -461,18 +475,36 @@ function renderMinimized() {
     pill.innerHTML = `<span class="min-dot"></span><span class="min-title"></span><span class="min-close" title="Close">✕</span>`;
     pill.querySelector(".min-title").textContent = m.title || "Private session";
     pill.addEventListener("click", (e) => {
-      if (e.target.classList.contains("min-close")) restoreMinimized(m, false);
-      else restoreMinimized(m, true);
+      if (e.target.classList.contains("min-close")) closeMinimized(m);
+      else restoreMinimized(m);
     });
     bar.appendChild(pill);
   }
   bar.hidden = state.minimized.length === 0;
 }
 
-function restoreMinimized(m, reopen) {
+function restoreMinimized(m) {
   state.minimized = state.minimized.filter((x) => !(x.id === m.id && x.provider === m.provider));
   renderMinimized();
-  if (reopen) openSession(m);
+  openSession(m);
+}
+
+// Closing a minimized in-private session discards it — and its transcript.
+function closeMinimized(m) {
+  state.minimized = state.minimized.filter((x) => !(x.id === m.id && x.provider === m.provider));
+  renderMinimized();
+  purgePrivate(m);
+}
+
+// Delete an in-private session's stored transcript so it isn't kept in history.
+function purgePrivate(sess) {
+  if (!sess || !sess.id) return;
+  state.privateIds.delete(sess.id);
+  const url = `/api/sessions/${encodeURIComponent(sess.provider || "claude")}/${encodeURIComponent(sess.id)}/purge`;
+  try {
+    if (navigator.sendBeacon) navigator.sendBeacon(url);
+    else fetch(url, { method: "POST", keepalive: true });
+  } catch { /* best effort */ }
 }
 
 function clearMainView() {
@@ -611,6 +643,7 @@ async function send() {
     message: text,
     permissionMode: $("permMode").value,
     model: $("model").value || null,
+    effort: $("effort").value || null,
   };
 
   try {

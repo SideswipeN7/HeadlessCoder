@@ -155,6 +155,14 @@ app.MapGet("/api/sessions/{provider}/{project}/{id}", (AgentRegistry reg, string
         : Results.Json(p.GetTranscript(project, id), jsonOpts);
 });
 
+// Delete a session's stored transcript (used to keep in-private sessions out of history).
+app.MapPost("/api/sessions/{provider}/{id}/purge", (AgentRegistry reg, string provider, string id) =>
+{
+    var p = reg.Get(provider);
+    bool removed = p is not null && p.PurgeSession(id);
+    return Results.Json(new { removed }, jsonOpts);
+});
+
 // Stream a message to a (possibly new) session as Server-Sent Events.
 app.MapPost("/api/message", async (HttpContext ctx, AgentRegistry reg) =>
 {

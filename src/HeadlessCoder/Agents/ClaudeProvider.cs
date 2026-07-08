@@ -55,6 +55,8 @@ public sealed class ClaudeProvider : IAgentProvider
     public IReadOnlyList<TranscriptMessage> GetTranscript(string projectId, string sessionId) =>
         _store.GetTranscript(projectId, sessionId);
 
+    public bool PurgeSession(string sessionId) => _store.DeleteSession(sessionId);
+
     public async IAsyncEnumerable<AgentEvent> SendAsync(
         SendMessageRequest request,
         [EnumeratorCancellation] CancellationToken ct)

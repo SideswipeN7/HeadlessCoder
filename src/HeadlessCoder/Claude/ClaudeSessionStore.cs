@@ -117,6 +117,37 @@ public sealed class ClaudeSessionStore
         return messages;
     }
 
+    /// <summary>
+    /// Deletes a session's transcript (the &lt;id&gt;.jsonl file and its sidecar
+    /// folder) wherever it lives under the projects root. Used to keep in-private
+    /// sessions out of history. Returns true if anything was removed.
+    /// </summary>
+    public bool DeleteSession(string sessionId)
+    {
+        if (!Directory.Exists(_projectsRoot) || !IsSafeId(sessionId))
+            return false;
+
+        bool removed = false;
+        foreach (var dir in Directory.EnumerateDirectories(_projectsRoot))
+        {
+            try
+            {
+                string file = Path.Combine(dir, sessionId + ".jsonl");
+                if (File.Exists(file)) { File.Delete(file); removed = true; }
+
+                string sidecar = Path.Combine(dir, sessionId);
+                if (Directory.Exists(sidecar)) { Directory.Delete(sidecar, recursive: true); removed = true; }
+            }
+            catch { /* best effort */ }
+        }
+        return removed;
+    }
+
+    // Guard against path traversal — session ids are GUID-like.
+    private static bool IsSafeId(string id) =>
+        !string.IsNullOrWhiteSpace(id) &&
+        id.All(c => char.IsLetterOrDigit(c) || c == '-' || c == '_');
+
     // ---- helpers -----------------------------------------------------------
 
     private static List<string> SafeEnumerateSessionFiles(string dir)

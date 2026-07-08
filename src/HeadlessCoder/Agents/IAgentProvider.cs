@@ -23,4 +23,7 @@ public interface IAgentProvider
 
     /// <summary>Send a message and stream normalized events back.</summary>
     IAsyncEnumerable<AgentEvent> SendAsync(SendMessageRequest request, CancellationToken ct);
+
+    /// <summary>Delete a session's stored transcript (for in-private sessions). No-op if unsupported.</summary>
+    bool PurgeSession(string sessionId) => false;
 }

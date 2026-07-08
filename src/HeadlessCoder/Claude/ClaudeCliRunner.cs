@@ -56,6 +56,12 @@ public sealed class ClaudeCliRunner
             args.Add(request.Model!);
         }
 
+        if (IsValidEffort(request.Effort))
+        {
+            args.Add("--effort");
+            args.Add(request.Effort!);
+        }
+
         var psi = new ProcessStartInfo(_executable)
         {
             UseShellExecute = false,
@@ -109,6 +115,9 @@ public sealed class ClaudeCliRunner
             yield return $"{{\"type\":\"error\",\"error\":\"{JsonEscape(err)}\"}}";
         }
     }
+
+    private static bool IsValidEffort(string? effort) => effort is
+        "low" or "medium" or "high" or "xhigh" or "max";
 
     private static string NormalizePermissionMode(string mode) => mode switch
     {

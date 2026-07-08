@@ -58,8 +58,9 @@ streaming responses.
   blocks — like Claude Desktop. Tool calls show a summary + pretty-printed input.
 - **Share links.** 🔗 copies a link that reopens the current conversation on any device.
 - **Shift+Tab** cycles the working mode (Ask → Accept edits → Plan → Bypass) from the composer.
-- **In-private sessions.** Start a session that stays out of the list and can be **minimized**
-  to a pill and restored later.
+- **Effort control.** Pick the reasoning effort per message (Claude: low → max).
+- **In-private sessions.** Start a session that stays out of the list, can be **minimized** to a
+  pill and restored — and whose transcript is **deleted from history** when you close it.
 - **Collapsible groups.** In "By agent" view the agent groups collapse; state is remembered.
 - **Switchable themes + light/dark.** Pick a UI style by name — **Claude**, **GitHub**,
   **OpenAI**, **opencode**, **Obsidian** — each with a light and dark variant. Your choice is

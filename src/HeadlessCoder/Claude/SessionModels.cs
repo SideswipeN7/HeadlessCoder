@@ -44,4 +44,7 @@ public sealed class SendMessageRequest
     public string Message { get; set; } = "";
     public string PermissionMode { get; set; } = "default"; // default|acceptEdits|plan|bypassPermissions
     public string? Model { get; set; }
+
+    /// <summary>Reasoning effort level (Claude: low|medium|high|xhigh|max).</summary>
+    public string? Effort { get; set; }
 }
