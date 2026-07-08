@@ -46,6 +46,9 @@ body {
   padding: 20px 20px 14px;
 }
 .spike { color: var(--ink); font-size: 20px; line-height: 1; }
+.brand-logo { height: 26px; width: auto; display: block; flex: none; }
+/* The logo art is solid black — invert it on dark surfaces so it reads as light. */
+:root[data-mode="dark"] .brand-logo { filter: invert(1) hue-rotate(180deg); }
 .wordmark { font-weight: 600; font-size: 17px; color: var(--ink); letter-spacing: -0.2px; }
 
 .new-session { margin: 0 16px 12px; width: calc(100% - 32px); justify-content: center; }

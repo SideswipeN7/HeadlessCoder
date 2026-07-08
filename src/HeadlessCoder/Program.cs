@@ -60,6 +60,7 @@ if (authEnabled)
         bool openPath =
             path.Equals("/hc/login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/login", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/hc/logo.svg", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/favicon.ico", StringComparison.OrdinalIgnoreCase);
         if (openPath) { await next(); return; }
 

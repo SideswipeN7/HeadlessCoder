@@ -17,6 +17,8 @@
     .card { width:min(380px,92vw); background:var(--canvas); border:1px solid var(--hairline);
             border-radius:16px; padding:32px; text-align:center; }
     .mark { font-size:30px; color:var(--primary); }
+    .logo { height:44px; width:auto; margin:0 auto 4px; display:block; }
+    @media (prefers-color-scheme: dark) { .logo { filter:invert(1); } }
     h1 { font-family:Georgia,"Times New Roman",serif; font-weight:400; font-size:26px; letter-spacing:-0.5px;
          color:var(--ink); margin:12px 0 4px; }
     p { color:var(--muted); font-size:14px; margin:0 0 20px; }
@@ -31,7 +33,7 @@
 </head>
 <body>
   <form class="card" id="form">
-    <div class="mark">✳</div>
+    <img src="/hc/logo.svg" class="logo" alt="" />
     <h1>HeadlessCoder</h1>
     <p>Enter the access password shown in the host's console.</p>
     <input id="pw" type="password" placeholder="Password" autocomplete="current-password" autofocus />

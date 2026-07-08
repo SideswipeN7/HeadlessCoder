@@ -1,4 +1,8 @@
-# ✳ HeadlessCoder
+<p align="center">
+  <img src="logo.svg" alt="HeadlessCoder" width="300" />
+</p>
+
+<h1 align="center">HeadlessCoder</h1>
 
 Drive your coding-agent CLIs — **Claude Code**, **Gemini CLI**, **Copilot CLI** — from your
 phone, or any device on your LAN.
