@@ -25,7 +25,7 @@ streaming responses.
         ↳ Install with `npm install -g @github/copilot`, then run `copilot` once and `/login`.
 
   Open this on your phone or any device on the same network:
-      http://192.168.100.1:8787/hc
+      http://192.168.100.1:8787
 
   █████████████████████████████████████
   ██████ ▄▄▄▄▄ ██▄▄ ▄▄▄▀██ ▄▄▄▄▄ ██████
@@ -232,7 +232,7 @@ git push origin v1.0.0
  phone / laptop                host machine
  ┌───────────┐   HTTP/SSE   ┌───────────────────────────────────┐
  │  web UI   │ ───────────► │  HeadlessCoder (ASP.NET Core)      │
- │  (/hc)    │ ◄─────────── │   AgentRegistry                    │
+ │  (root)   │ ◄─────────── │   AgentRegistry                    │
  └───────────┘  normalized  │    ├─ ClaudeProvider  ── claude    │
                   events     │    ├─ GeminiProvider  ── gemini    │
                             │    └─ CopilotProvider ── copilot   │

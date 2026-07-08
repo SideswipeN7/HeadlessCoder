@@ -63,7 +63,7 @@ var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 // About / update-check.
 const string ghRepo = "SideswipeN7/HeadlessCoder";
 string appVersion = Assembly.GetExecutingAssembly().GetName().Version is { } ver
-    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.0.1";
+    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.0.2";
 var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
 // ---- Access control ----------------------------------------------------------
@@ -75,9 +75,9 @@ if (authEnabled)
     {
         string path = ctx.Request.Path.Value ?? "";
         bool openPath =
-            path.Equals("/hc/login", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/login", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/hc/logo.svg", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/logo.svg", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/favicon.ico", StringComparison.OrdinalIgnoreCase);
         if (openPath) { await next(); return; }
 
@@ -102,11 +102,11 @@ if (authEnabled)
         }
         // Preserve the target (e.g. a shared ?s= deep link) across login.
         string ret = Uri.EscapeDataString(ctx.Request.Path + ctx.Request.QueryString);
-        ctx.Response.Redirect($"/hc/login?return={ret}");
+        ctx.Response.Redirect($"/login?return={ret}");
     });
 }
 
-app.MapGet("/hc/login", () => authEnabled ? ServeAsset("login.html") : Results.Redirect("/hc"));
+app.MapGet("/login", () => authEnabled ? ServeAsset("login.html") : Results.Redirect("/"));
 app.MapPost("/api/login", async (HttpContext ctx) =>
 {
     if (!authEnabled) return Results.Ok(new { ok = true });
@@ -119,15 +119,12 @@ app.MapPost("/api/login", async (HttpContext ctx) =>
     return Results.Unauthorized();
 });
 
-// ---- Web UI (embedded, single-file) ------------------------------------------
+// ---- Web UI (embedded, single-file) — served at the root ---------------------
 
-app.MapGet("/", () => Results.Redirect("/hc"));
-app.MapGet("/hc", () => ServeAsset("index.html"));
-app.MapGet("/hc/{*path}", (string path) =>
+app.MapGet("/", () => ServeAsset("index.html"));
+app.MapGet("/{file}", (string file) =>
 {
-    if (string.IsNullOrWhiteSpace(path))
-        return ServeAsset("index.html");
-    var asset = EmbeddedAssets.TryGet(path);
+    var asset = EmbeddedAssets.TryGet(file);
     return asset is null ? ServeAsset("index.html") : Results.Bytes(asset.Value.Bytes, asset.Value.ContentType);
 });
 
@@ -303,9 +300,9 @@ var registry = app.Services.GetRequiredService<AgentRegistry>();
 DoctorReport doctor = registry.Diagnose();
 
 string host = options.AdvertiseHost ?? NetworkHelper.GetLanIpv4();
-string url = $"http://{host}:{options.Port}/hc";
+string url = $"http://{host}:{options.Port}";
 // The QR embeds the access key so scanning signs you in automatically.
-string qrContent = authEnabled ? $"{url}?key={Uri.EscapeDataString(password)}" : url;
+string qrContent = authEnabled ? $"{url}/?key={Uri.EscapeDataString(password)}" : url;
 
 SleepPreventer? sleep = options.NoSleep ? SleepPreventer.Start() : null;
 app.Lifetime.ApplicationStopping.Register(() => sleep?.Dispose());

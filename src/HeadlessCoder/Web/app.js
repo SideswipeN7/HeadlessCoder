@@ -645,7 +645,7 @@ async function onRenameSubmit(e) {
 function shareCurrent() {
   const s = state.current;
   if (!s || !s.id) return;
-  const link = `${location.origin}/hc?s=${encodeURIComponent(s.provider + ":" + s.project + ":" + s.id)}`;
+  const link = `${location.origin}/?s=${encodeURIComponent(s.provider + ":" + s.project + ":" + s.id)}`;
   copyText(link).then(
     () => showToast("Share link copied to clipboard"),
     () => showToast(link)
@@ -656,7 +656,7 @@ function applyDeepLink() {
   const raw = new URLSearchParams(location.search).get("s");
   if (!raw) return;
   // Clean the URL so a refresh doesn't keep reopening.
-  history.replaceState(null, "", "/hc");
+  history.replaceState(null, "", "/");
   const [provider, project, id] = raw.split(":");
   if (!provider || !id) return;
   const found = state.sessions.find((x) => x.id === id && (x.provider || "claude") === provider);

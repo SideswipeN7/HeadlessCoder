@@ -33,7 +33,7 @@
 </head>
 <body>
   <form class="card" id="form">
-    <img src="/hc/logo.svg" class="logo" alt="" />
+    <img src="/logo.svg" class="logo" alt="" />
     <h1>HeadlessCoder</h1>
     <p>Enter the access password shown in the host's console.</p>
     <input id="pw" type="password" placeholder="Password" autocomplete="current-password" autofocus />
@@ -55,7 +55,7 @@
         });
         if (r.ok) {
           const ret = new URLSearchParams(location.search).get("return");
-          let dest = "/hc";
+          let dest = "/";
           if (ret && ret.startsWith("/")) dest = ret;   // same-origin path only
           window.location.assign(dest);
         }
