@@ -21,6 +21,13 @@ public sealed class AntigravityProvider : GenericCliProvider
     protected override string InstallHint =>
         "Install the Antigravity CLI (`agy`) from https://antigravity.google, then run `agy` once to authenticate.";
 
+    protected override IReadOnlyList<AgentOption> ModelOptions { get; } = new AgentOption[]
+    {
+        new("gemini-3-pro", "Gemini 3 Pro"),
+        new("gemini-2.5-pro", "Gemini 2.5 Pro"),
+        new("gemini-2.5-flash", "Gemini 2.5 Flash"),
+    };
+
     protected override IEnumerable<string> BuildArgs(SendMessageRequest request)
     {
         var args = new List<string> { "--prompt", request.Message };

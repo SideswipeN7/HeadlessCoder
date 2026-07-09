@@ -35,6 +35,20 @@ public sealed class ClaudeProvider : IAgentProvider
             ExecutablePath = exe,
             ConfigFound = _store.IsAvailable,
             SessionStorePath = _store.ProjectsRoot,
+            SupportsEffort = true,
+            PermissionModes = new AgentOption[]
+            {
+                new("default", "Ask"),
+                new("acceptEdits", "Accept edits"),
+                new("plan", "Plan"),
+                new("bypassPermissions", "Bypass (YOLO)"),
+            },
+            Models = new AgentOption[]
+            {
+                new("claude-opus-4-8", "Opus 4.8"),
+                new("claude-sonnet-5", "Sonnet 5"),
+                new("claude-haiku-4-5-20251001", "Haiku 4.5"),
+            },
         };
 
         if (exe is not null)

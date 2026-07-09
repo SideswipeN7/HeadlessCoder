@@ -128,9 +128,12 @@
             </div>
           </label>
           <span class="queue-chip" id="queueChip" hidden title="Messages waiting to be sent"></span>
-          <span class="ctx-chip" id="ctxChip" hidden title="Context window used (last turn)">
-            <span class="ctx-bar"><span class="ctx-fill" id="ctxFill"></span></span>
-            <span class="ctx-text" id="ctxText"></span>
+          <span class="usage-wrap" id="usageWrap" hidden>
+            <button type="button" class="usage-chip" id="usageChip" title="Usage &amp; context — click for details">
+              <span class="ctx-bar"><span class="ctx-fill" id="ctxFill"></span></span>
+              <span class="ctx-text" id="ctxText"></span>
+            </button>
+            <div class="usage-pop info-pop" id="usagePop" hidden></div>
           </span>
           <span class="cwd-chip muted" id="cwdChip"></span>
         </div>
@@ -313,6 +316,11 @@
 
   <div id="minimizedBar" class="minimized-bar" hidden></div>
   <div id="toast" class="toast" hidden></div>
+
+  <!-- Fullscreen image viewer -->
+  <div id="lightbox" class="lightbox" hidden>
+    <img id="lightboxImg" alt="" />
+  </div>
 
   <script src="/app.js"></script>
 </body>

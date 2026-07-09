@@ -42,6 +42,9 @@ public sealed class AgentEvent
     public static AgentEvent Error(string message) => new() { Kind = "error", Message = message };
 }
 
+/// <summary>A selectable option (value sent to the CLI, human label shown in the UI).</summary>
+public sealed record AgentOption(string Value, string Label);
+
 /// <summary>
 /// Capabilities + install/auth status for one agent CLI, surfaced to the doctor
 /// screen and the UI.
@@ -61,6 +64,11 @@ public sealed class AgentDescriptor
 
     public bool SupportsHistory { get; init; }        // can we read past transcripts?
     public bool SupportsResume { get; init; }         // can we continue a session by id?
+
+    // What the composer should offer for THIS agent (the UI rebuilds its controls from these).
+    public IReadOnlyList<AgentOption>? Models { get; set; }          // extra --model choices
+    public IReadOnlyList<AgentOption>? PermissionModes { get; set; } // working modes
+    public bool SupportsEffort { get; set; }                         // show the Effort control?
 
     /// <summary>ready | partial | missing</summary>
     public string Status =>

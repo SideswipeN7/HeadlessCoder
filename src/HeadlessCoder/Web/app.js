@@ -35,12 +35,29 @@ window.addEventListener("DOMContentLoaded", () => {
     const p = $("effortPop");
     p.hidden = !p.hidden;
   });
+  $("usageChip").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const p = $("usagePop");
+    p.hidden = !p.hidden;
+  });
   document.addEventListener("click", (e) => {
     const p = $("effortPop");
     if (p && !p.hidden && !e.target.closest(".ctrl-effort")) p.hidden = true;
+    const u = $("usagePop");
+    if (u && !u.hidden && !e.target.closest(".usage-wrap")) u.hidden = true;
   });
   $("terminalBtn").addEventListener("click", toggleTerminal);
   $("terminalForm").addEventListener("submit", runTerminalCommand);
+  $("terminalInput").addEventListener("keydown", onTerminalKey);
+  // Click any thumbnail (in a message or the attachment tray) to view it fullscreen.
+  document.addEventListener("click", (e) => {
+    const img = e.target.closest(".msg-image, .attach-chip img");
+    if (img) openLightbox(img.src);
+  });
+  $("lightbox").addEventListener("click", () => { $("lightbox").hidden = true; });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("lightbox").hidden) $("lightbox").hidden = true;
+  });
   $("terminalMinBtn").addEventListener("click", (e) => { e.stopPropagation(); minimizeTerminal(); });
   $("terminalCloseBtn").addEventListener("click", (e) => { e.stopPropagation(); $("terminalWindow").hidden = true; });
   $("terminalClearBtn").addEventListener("click", (e) => { e.stopPropagation(); $("terminalOutput").innerHTML = ""; });
@@ -409,6 +426,29 @@ async function loadAgents() {
 }
 
 function agentById(id) { return state.agents.find((a) => a.id === id); }
+
+// Rebuild the composer's Mode / Model / Effort controls for the given agent, so
+// each agent shows only the modes/models it actually supports.
+function applyAgentControls(providerId) {
+  const a = agentById(providerId) || {};
+  const modes = (a.permissionModes && a.permissionModes.length)
+    ? a.permissionModes : [{ value: "default", label: "Default" }];
+  fillSelect($("permMode"), modes);
+  fillSelect($("model"), [{ value: "", label: "Default" }].concat(a.models || []));
+  const effortCtrl = document.querySelector(".ctrl-effort");
+  if (effortCtrl) effortCtrl.hidden = !a.supportsEffort;
+}
+function fillSelect(sel, options) {
+  const prev = sel.value;
+  sel.innerHTML = "";
+  for (const o of options) {
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+  }
+  if (options.some((o) => o.value === prev)) sel.value = prev;
+}
 function installedAgents() { return state.agents.filter((a) => a.installed); }
 function agentName(id) { const a = agentById(id); return a ? a.displayName : id; }
 
@@ -548,6 +588,7 @@ async function openSession(sess) {
   $("chatTitle").textContent = sess.title || "Session";
   $("chatSub").textContent = `${agentName(sess.provider)} · ${shortenPath(sess.cwd)}`;
   $("cwdChip").textContent = shortenPath(sess.cwd);
+  applyAgentControls(sess.provider);
   $("composer").hidden = false;
   if (sess.private && sess.id) state.privateIds.add(sess.id);
   updateSessionButtons();
@@ -711,7 +752,7 @@ function showToast(msg) {
 
 async function loadTranscript(sess) {
   const t = $("transcript");
-  resetContextMeter();
+  resetUsage();
   resetTerminalForSession();
   t.innerHTML = `<div class="empty muted">Loading transcript…</div>`;
   try {
@@ -812,6 +853,20 @@ function termAppend(text, cls) {
   line.textContent = text;
   out.appendChild(line);
   out.scrollTop = out.scrollHeight;
+  state.termOut = null;               // next chunk starts a fresh output block
+}
+// Append a raw output chunk to the current command's output block (live, no per-line divs).
+function termChunk(text, isErr) {
+  const out = $("terminalOutput");
+  if (!state.termOut) {
+    state.termOut = document.createElement("div");
+    state.termOut.className = "t-out";
+    out.appendChild(state.termOut);
+  }
+  const node = isErr ? document.createElement("span") : document.createTextNode(text);
+  if (isErr) { node.className = "t-err"; node.textContent = text; }
+  state.termOut.appendChild(node);
+  out.scrollTop = out.scrollHeight;
 }
 async function runTerminalCommand(e) {
   if (e) e.preventDefault();
@@ -820,6 +875,9 @@ async function runTerminalCommand(e) {
   const cmd = input.value.trim();
   if (!cmd) return;
   input.value = "";
+  state.termHistory = state.termHistory || [];
+  if (state.termHistory[state.termHistory.length - 1] !== cmd) state.termHistory.push(cmd);
+  state.termHistIdx = state.termHistory.length;
   termAppend("$ " + cmd, "t-cmd");
   state.termBusy = true;
   try {
@@ -861,7 +919,23 @@ function handleTermSse(frame) {
   let obj;
   try { obj = JSON.parse(dataLines.join("\n")); } catch { return; }
   if (obj.kind === "exit") termAppend(`[exit ${obj.text}]`, "t-exit");
-  else termAppend(obj.text, obj.kind === "stderr" ? "t-err" : null);
+  else termChunk(obj.text, obj.kind === "stderr");
+}
+
+// Up/Down cycles previous terminal commands, like a real shell.
+function onTerminalKey(e) {
+  const hist = state.termHistory || [];
+  if (e.key === "ArrowUp") {
+    if (!hist.length) return;
+    e.preventDefault();
+    state.termHistIdx = Math.max(0, (state.termHistIdx ?? hist.length) - 1);
+    $("terminalInput").value = hist[state.termHistIdx] || "";
+  } else if (e.key === "ArrowDown") {
+    if (!hist.length) return;
+    e.preventDefault();
+    state.termHistIdx = Math.min(hist.length, (state.termHistIdx ?? hist.length) + 1);
+    $("terminalInput").value = state.termHistIdx >= hist.length ? "" : hist[state.termHistIdx];
+  }
 }
 
 // Sending never blocks the composer: each submit is queued and the queue is
@@ -1187,7 +1261,7 @@ function addResultLine(ev) {
   d.className = "result-line";
   d.textContent = parts.length ? `— ${parts.join(" · ")} —` : "— done —";
   $("transcript").appendChild(d);
-  updateContextMeter(ev);
+  updateUsage(ev);
   scrollBottom();
 }
 
@@ -1199,21 +1273,57 @@ function fmtTokens(n) {
   return (n / 1000000).toFixed(1) + "M";
 }
 
-// Update the composer's context-window chip after a turn that reported tokens.
-function updateContextMeter(ev) {
-  const chip = $("ctxChip");
-  if (!chip) return;
-  if (typeof ev.contextTokens !== "number" || !(ev.contextWindow > 0)) return;
-  const pct = Math.min(100, Math.round(ev.contextTokens / ev.contextWindow * 100));
+// Update the composer's usage/context chip after a turn that reported tokens.
+function updateUsage(ev) {
+  const wrap = $("usageWrap");
+  if (!wrap) return;
+  const hasTokens = typeof ev.inputTokens === "number" || typeof ev.contextTokens === "number";
+  if (!hasTokens) return;               // agent didn't report usage — leave the chip hidden
+  state.lastUsage = ev;
   const fill = $("ctxFill");
-  fill.style.width = pct + "%";
-  fill.classList.toggle("high", pct >= 80);
-  const model = ev.model ? ev.model.replace(/\[1m\]$/, " (1M)") : "";
-  $("ctxText").textContent = `${fmtTokens(ev.contextTokens)}/${fmtTokens(ev.contextWindow)} · ${pct}%`;
-  chip.title = `Context window used (last turn)${model ? " — " + model : ""}`;
-  chip.hidden = false;
+  if (typeof ev.contextTokens === "number" && ev.contextWindow > 0) {
+    const pct = Math.min(100, Math.round(ev.contextTokens / ev.contextWindow * 100));
+    fill.style.width = pct + "%";
+    fill.classList.toggle("high", pct >= 80);
+    $("ctxText").textContent = `ctx ${pct}%`;
+  } else {
+    fill.style.width = "0%";
+    $("ctxText").textContent = "usage";
+  }
+  wrap.hidden = false;
+  renderUsagePop(ev);
 }
-function resetContextMeter() { const c = $("ctxChip"); if (c) c.hidden = true; }
+function renderUsagePop(ev) {
+  const pop = $("usagePop");
+  if (!pop) return;
+  const row = (k, v) => `<div class="u-row"><span>${k}</span><b>${v}</b></div>`;
+  const rows = [];
+  const model = ev.model ? ev.model.replace(/\[1m\]$/, " (1M ctx)")
+    : (state.current ? agentName(state.current.provider) : "");
+  if (model) rows.push(row("Model", escapeHtml(model)));
+  if (typeof ev.contextTokens === "number" && ev.contextWindow > 0) {
+    const pct = Math.round(ev.contextTokens / ev.contextWindow * 100);
+    rows.push(row("Context", `${fmtTokens(ev.contextTokens)} / ${fmtTokens(ev.contextWindow)} (${pct}%)`));
+  }
+  if (typeof ev.inputTokens === "number") rows.push(row("Input", fmtTokens(ev.inputTokens)));
+  if (typeof ev.outputTokens === "number") rows.push(row("Output", fmtTokens(ev.outputTokens)));
+  if (ev.cacheReadTokens) rows.push(row("Cache read", fmtTokens(ev.cacheReadTokens)));
+  if (ev.cacheCreateTokens) rows.push(row("Cache write", fmtTokens(ev.cacheCreateTokens)));
+  if (typeof ev.costUsd === "number" && ev.costUsd > 0) rows.push(row("Cost", `$${ev.costUsd.toFixed(4)}`));
+  const note = (state.current && state.current.provider === "claude")
+    ? `<div class="u-note">The 5-hour usage limit isn't exposed by the Claude Code CLI, so it can't be shown here.</div>`
+    : "";
+  pop.innerHTML = `<strong>Usage — last turn</strong>${rows.join("")}${note}`;
+}
+function resetUsage() {
+  state.lastUsage = null;
+  const w = $("usageWrap"); if (w) w.hidden = true;
+  const p = $("usagePop"); if (p) p.hidden = true;
+}
+function openLightbox(src) {
+  $("lightboxImg").src = src;
+  $("lightbox").hidden = false;
+}
 function addErrorLine(text) {
   const d = document.createElement("div");
   d.className = "error-line";

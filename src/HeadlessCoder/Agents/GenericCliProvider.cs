@@ -36,6 +36,18 @@ public abstract class GenericCliProvider : IAgentProvider
     /// </summary>
     protected virtual ICliHistoryStore? HistoryStore => null;
 
+    /// <summary>Working modes offered in the composer. Values map to <see cref="BuildArgs"/>.</summary>
+    protected static readonly AgentOption[] DefaultModes =
+    {
+        new("default", "Default"),
+        new("bypassPermissions", "Auto-approve all"),
+    };
+
+    /// <summary>Extra --model choices this CLI offers (the UI prepends a "Default").</summary>
+    protected virtual IReadOnlyList<AgentOption> ModelOptions => Array.Empty<AgentOption>();
+    protected virtual IReadOnlyList<AgentOption> PermissionModeOptions => DefaultModes;
+    protected virtual bool SupportsEffortFlag => false;
+
     public AgentDescriptor Detect()
     {
         string? exe = Cli.Locate(ExecutableName);
@@ -57,6 +69,9 @@ public abstract class GenericCliProvider : IAgentProvider
             ConfigFound = cfgFound,
             SessionStorePath = store?.StorePath ?? cfg,
             SessionCount = sessionCount,
+            Models = ModelOptions,
+            PermissionModes = PermissionModeOptions,
+            SupportsEffort = SupportsEffortFlag,
         };
         if (exe is not null)
             d.Version = Cli.ProbeVersion(exe, VersionArg);

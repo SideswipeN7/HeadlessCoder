@@ -69,14 +69,17 @@ public sealed class CommandRunner
         yield return new TerminalLine("exit", process.ExitCode.ToString());
     }
 
+    // Read raw chunks (not whole lines) so output appears live — progress bars and
+    // partial lines show up immediately instead of waiting for a newline.
     private static async Task Pump(
         StreamReader reader, string kind, ChannelWriter<TerminalLine> writer, CancellationToken ct)
     {
-        string? line;
+        var buf = new char[2048];
         try
         {
-            while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) is not null)
-                await writer.WriteAsync(new TerminalLine(kind, line), ct).ConfigureAwait(false);
+            int n;
+            while ((n = await reader.ReadAsync(buf, ct).ConfigureAwait(false)) > 0)
+                await writer.WriteAsync(new TerminalLine(kind, new string(buf, 0, n)), ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { /* cancelled — stop pumping */ }
     }
