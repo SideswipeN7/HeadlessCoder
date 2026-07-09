@@ -458,6 +458,19 @@ body {
   white-space: nowrap;
   max-width: 45%;
 }
+/* Context-window meter chip (populated after each turn for token-reporting agents). */
+.ctx-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); }
+.ctx-bar {
+  width: 54px; height: 6px; border-radius: 999px;
+  background: var(--hairline); overflow: hidden; flex: none;
+}
+.ctx-fill {
+  display: block; height: 100%; width: 0;
+  background: var(--primary); border-radius: 999px; transition: width .3s ease;
+}
+.ctx-fill.high { background: var(--error); }
+.ctx-text { font-family: var(--mono); white-space: nowrap; }
+
 .composer-row { display: flex; gap: 10px; align-items: flex-end; }
 #input {
   flex: 1;

@@ -701,6 +701,7 @@ function showToast(msg) {
 
 async function loadTranscript(sess) {
   const t = $("transcript");
+  resetContextMeter();
   t.innerHTML = `<div class="empty muted">Loading transcript…</div>`;
   try {
     const supportsHistory = (agentById(sess.provider) || {}).supportsHistory !== false;
@@ -1038,6 +1039,12 @@ function clip(s) { return s.length > 100 ? s.slice(0, 100) + "…" : s; }
 function addResultLine(ev) {
   const parts = [];
   if (typeof ev.durationMs === "number") parts.push(`${(ev.durationMs / 1000).toFixed(1)}s`);
+  if (typeof ev.inputTokens === "number" || typeof ev.outputTokens === "number")
+    parts.push(`↑${fmtTokens(ev.inputTokens || 0)} ↓${fmtTokens(ev.outputTokens || 0)}`);
+  if (typeof ev.cacheReadTokens === "number" && ev.cacheReadTokens > 0)
+    parts.push(`cache ${fmtTokens(ev.cacheReadTokens)}`);
+  if (typeof ev.contextTokens === "number" && ev.contextWindow > 0)
+    parts.push(`ctx ${fmtTokens(ev.contextTokens)}/${fmtTokens(ev.contextWindow)} (${Math.round(ev.contextTokens / ev.contextWindow * 100)}%)`);
   if (typeof ev.costUsd === "number" && ev.costUsd > 0) parts.push(`$${ev.costUsd.toFixed(4)}`);
   if (ev.turns) parts.push(`${ev.turns} turns`);
   if (ev.isError) parts.push("error");
@@ -1045,8 +1052,33 @@ function addResultLine(ev) {
   d.className = "result-line";
   d.textContent = parts.length ? `— ${parts.join(" · ")} —` : "— done —";
   $("transcript").appendChild(d);
+  updateContextMeter(ev);
   scrollBottom();
 }
+
+// Compact token counts: 1234 → "1.2k", 45000 → "45k", 1200000 → "1.2M".
+function fmtTokens(n) {
+  if (typeof n !== "number") return "0";
+  if (n < 1000) return String(n);
+  if (n < 1000000) return (n / 1000).toFixed(n < 10000 ? 1 : 0) + "k";
+  return (n / 1000000).toFixed(1) + "M";
+}
+
+// Update the composer's context-window chip after a turn that reported tokens.
+function updateContextMeter(ev) {
+  const chip = $("ctxChip");
+  if (!chip) return;
+  if (typeof ev.contextTokens !== "number" || !(ev.contextWindow > 0)) return;
+  const pct = Math.min(100, Math.round(ev.contextTokens / ev.contextWindow * 100));
+  const fill = $("ctxFill");
+  fill.style.width = pct + "%";
+  fill.classList.toggle("high", pct >= 80);
+  const model = ev.model ? ev.model.replace(/\[1m\]$/, " (1M)") : "";
+  $("ctxText").textContent = `${fmtTokens(ev.contextTokens)}/${fmtTokens(ev.contextWindow)} · ${pct}%`;
+  chip.title = `Context window used (last turn)${model ? " — " + model : ""}`;
+  chip.hidden = false;
+}
+function resetContextMeter() { const c = $("ctxChip"); if (c) c.hidden = true; }
 function addErrorLine(text) {
   const d = document.createElement("div");
   d.className = "error-line";
