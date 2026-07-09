@@ -225,6 +225,14 @@ app.MapGet("/api/sessions/{provider}/{project}/{id}", (AgentRegistry reg, string
         : Results.Json(p.GetTranscript(project, id), jsonOpts);
 });
 
+// Last-known usage/context for a session, so the composer shows it the moment you open a chat.
+app.MapGet("/api/sessions/{provider}/{project}/{id}/usage", (AgentRegistry reg, string provider, string project, string id) =>
+{
+    if (options.NoHistory) return Results.Json((object?)null, jsonOpts);
+    var p = reg.Get(provider);
+    return Results.Json(p?.GetLastUsage(project, id), jsonOpts);
+});
+
 // Delete a session's stored transcript (used to keep in-private sessions out of history).
 app.MapPost("/api/sessions/{provider}/{id}/purge", (AgentRegistry reg, string provider, string id) =>
 {

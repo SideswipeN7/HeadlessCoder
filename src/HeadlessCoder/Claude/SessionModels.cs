@@ -18,6 +18,16 @@ public sealed record SessionSummary(
     DateTimeOffset? LastActivity,
     string Provider = "claude");
 
+/// <summary>Last-known token usage for a session, shown on entry (before any new turn).</summary>
+public sealed record AgentUsage(
+    long? InputTokens,
+    long? OutputTokens,
+    long? CacheReadTokens,
+    long? CacheCreateTokens,
+    long? ContextTokens,
+    long? ContextWindow,
+    string? Model);
+
 /// <summary>A single rendered message inside a transcript.</summary>
 public sealed record TranscriptMessage(
     string Role,          // "user" | "assistant" | "tool"

@@ -764,6 +764,13 @@ async function loadTranscript(sess) {
     if (!msgs.length) addWelcomeInline(sess);
     else for (const m of msgs) renderTranscriptMessage(m);
     scrollBottom();
+    // Show the session's context/usage straight away, without waiting for a new turn.
+    if (sess.id && supportsHistory) {
+      fetch(`/api/sessions/${encodeURIComponent(sess.provider)}/${encodeURIComponent(sess.project)}/${encodeURIComponent(sess.id)}/usage`)
+        .then((r) => r.json())
+        .then((u) => { if (u) updateUsage(u); })
+        .catch(() => {});
+    }
   } catch {
     t.innerHTML = `<div class="empty muted">Failed to load transcript.</div>`;
   }
@@ -800,7 +807,7 @@ function cyclePermMode() {
 function autoGrow() {
   const el = $("input");
   const expanded = $("composer").classList.contains("expanded");
-  const max = expanded ? Math.round(window.innerHeight * 0.5) : 200;
+  const max = expanded ? Math.round(window.innerHeight * 0.5) : 260;
   el.style.height = "auto";
   el.style.height = Math.min(el.scrollHeight, max) + "px";
 }

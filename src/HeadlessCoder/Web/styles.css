@@ -541,8 +541,8 @@ body {
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
   padding: 11px 14px;
-  max-height: 200px;
-  min-height: 44px;
+  max-height: 260px;
+  min-height: 130px;          /* ~5 lines by default */
 }
 #input:focus {
   outline: none;

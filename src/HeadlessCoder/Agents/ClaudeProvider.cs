@@ -71,6 +71,9 @@ public sealed class ClaudeProvider : IAgentProvider
 
     public bool PurgeSession(string sessionId) => _store.DeleteSession(sessionId);
 
+    public AgentUsage? GetLastUsage(string projectId, string sessionId) =>
+        _store.GetLastUsage(projectId, sessionId);
+
     public async IAsyncEnumerable<AgentEvent> SendAsync(
         SendMessageRequest request,
         [EnumeratorCancellation] CancellationToken ct)

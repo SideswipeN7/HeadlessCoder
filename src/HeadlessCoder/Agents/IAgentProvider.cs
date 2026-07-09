@@ -26,4 +26,7 @@ public interface IAgentProvider
 
     /// <summary>Delete a session's stored transcript (for in-private sessions). No-op if unsupported.</summary>
     bool PurgeSession(string sessionId) => false;
+
+    /// <summary>Last-known token usage/context for a session, read from disk. Null when unavailable.</summary>
+    AgentUsage? GetLastUsage(string projectId, string sessionId) => null;
 }
