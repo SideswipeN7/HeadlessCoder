@@ -28,7 +28,7 @@ public sealed record TranscriptMessage(
 /// <summary>Request body for sending a message to a (possibly new) session.</summary>
 public sealed class SendMessageRequest
 {
-    /// <summary>Which agent CLI to use: "claude" | "gemini" | "copilot".</summary>
+    /// <summary>Which agent CLI to use: "claude" | "antigravity" | "copilot".</summary>
     public string Provider { get; set; } = "claude";
 
     public string? SessionId { get; set; }

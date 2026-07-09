@@ -18,6 +18,25 @@ public sealed class CopilotProvider : GenericCliProvider
     protected override string InstallHint =>
         "Install with `npm install -g @github/copilot`, then run `copilot` once and `/login` to authenticate.";
 
+    // Copilot records each session under ~/.copilot/session-state/<id>/events.jsonl.
+    protected override ICliHistoryStore? HistoryStore { get; } = new CopilotSessionStore();
+
+    // Models Copilot CLI can route to (leave "Default" = auto). Adjust as GitHub adds models.
+    protected override IReadOnlyList<AgentOption> ModelOptions { get; } = new AgentOption[]
+    {
+        new("gpt-5", "GPT-5"),
+        new("gpt-5-mini", "GPT-5 mini"),
+        new("claude-sonnet-4.5", "Claude Sonnet 4.5"),
+        new("claude-sonnet-4", "Claude Sonnet 4"),
+        new("o3", "o3"),
+    };
+
+    protected override IReadOnlyList<AgentOption> PermissionModeOptions { get; } = new AgentOption[]
+    {
+        new("default", "Default"),
+        new("bypassPermissions", "Allow all tools"),
+    };
+
     protected override IEnumerable<string> BuildArgs(SendMessageRequest request)
     {
         // Non-interactive prompt mode. Copilot prints the answer and exits.

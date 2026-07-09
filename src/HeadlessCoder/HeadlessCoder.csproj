@@ -7,7 +7,7 @@
     <RootNamespace>HeadlessCoder</RootNamespace>
     <AssemblyName>headlesscoder</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.0.2</Version>
+    <Version>0.0.3</Version>
 
     <!-- Single-file friendly defaults. Publish with:
          dotnet publish -c Release -r win-x64  (or osx-arm64 / linux-x64 ...) -->

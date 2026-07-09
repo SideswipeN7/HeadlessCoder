@@ -70,6 +70,7 @@
           <button class="icon-btn" id="shareBtn" aria-label="Copy share link" title="Copy share link" hidden>🔗</button>
           <button class="icon-btn" id="minimizeBtn" aria-label="Minimize" title="Minimize" hidden>▁</button>
           <button class="icon-btn" id="refreshBtn" aria-label="Refresh" title="Refresh">⟳</button>
+          <button class="icon-btn terminal-toggle" id="terminalBtn" aria-label="Terminal" title="Terminal — run commands" hidden>&gt;_</button>
           <button class="icon-btn" id="gearBtn" aria-label="Settings" title="Settings">⚙️</button>
         </div>
       </header>
@@ -103,7 +104,7 @@
               <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
             </select>
           </label>
-          <label class="ctrl">
+          <label class="ctrl ctrl-effort">
             <span class="ctrl-label">Effort</span>
             <select id="effort">
               <option value="">Default</option>
@@ -113,12 +114,55 @@
               <option value="xhigh">xHigh</option>
               <option value="max">Max</option>
             </select>
+            <button type="button" class="ctrl-info" id="effortInfo" aria-label="Effort details" title="What do effort levels mean?">ⓘ</button>
+            <div class="info-pop" id="effortPop" hidden>
+              <strong>Reasoning effort</strong> — how much the model deliberates:
+              <ul>
+                <li><b>Default</b> — the model/CLI's own default.</li>
+                <li><b>Low</b> — fastest, least deliberation; good for simple edits.</li>
+                <li><b>Medium</b> — balanced speed vs. thoroughness.</li>
+                <li><b>High</b> — more careful reasoning; slower, costs more.</li>
+                <li><b>xHigh</b> — extended reasoning for hard problems.</li>
+                <li><b>Max</b> — maximum deliberation; slowest and most expensive.</li>
+              </ul>
+            </div>
           </label>
+          <span class="queue-chip" id="queueChip" hidden title="Messages waiting to be sent"></span>
+          <span class="usage-wrap" id="usageWrap" hidden>
+            <button type="button" class="usage-chip" id="usageChip" title="Usage &amp; context — click for details">
+              <span class="ctx-bar"><span class="ctx-fill" id="ctxFill"></span></span>
+              <span class="ctx-text" id="ctxText"></span>
+            </button>
+            <div class="usage-pop info-pop" id="usagePop" hidden></div>
+          </span>
           <span class="cwd-chip muted" id="cwdChip"></span>
         </div>
+        <div class="attachments" id="attachments" hidden></div>
         <div class="composer-row">
-          <textarea id="input" rows="1" placeholder="Message Claude Code…"></textarea>
+          <textarea id="input" rows="1" placeholder="Message Claude Code…  (paste an image to attach)"></textarea>
+          <button type="button" class="icon-btn expand-btn" id="expandBtn" aria-label="Expand input" title="Expand input (5 lines)">⤢</button>
           <button class="btn btn-primary send" id="sendBtn" aria-label="Send">Send</button>
+        </div>
+      </div>
+
+      <!-- In-browser terminal — docked under the composer; only used with --commands-allowed -->
+      <div id="terminalWindow" class="terminal-window" hidden>
+        <div class="terminal-head" id="terminalHead">
+          <span class="terminal-title">&gt;_ Terminal</span>
+          <span class="terminal-cwd muted" id="terminalCwd"></span>
+          <div class="terminal-head-actions">
+            <button type="button" class="terminal-hbtn" id="terminalClearBtn" title="Clear">🗑</button>
+            <button type="button" class="terminal-hbtn" id="terminalMinBtn" title="Minimize under input">▁</button>
+            <button type="button" class="terminal-hbtn" id="terminalCloseBtn" title="Close">✕</button>
+          </div>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-output" id="terminalOutput"></div>
+          <form class="terminal-input-row" id="terminalForm">
+            <span class="terminal-prompt">$</span>
+            <input type="text" id="terminalInput" autocomplete="off" autocapitalize="off"
+                   spellcheck="false" placeholder="Type a command and press Enter…" />
+          </form>
         </div>
       </div>
     </main>
@@ -228,7 +272,7 @@
             <li><b>Sessions</b> — the left list shows every session. Group them
                 <b>Recent</b> or <b>By agent</b> (agent groups collapse when you tap the header).</li>
             <li><b>New session</b> — pick an agent + working directory, then chat. Claude sessions
-                resume; Gemini/Copilot run one-shot.</li>
+                resume; Antigravity/Copilot run one-shot.</li>
             <li><b>Share</b> — 🔗 in the header copies a link that opens the current conversation.</li>
             <li><b>Permission mode</b> — <i>Ask</i> skips tools needing approval, <i>Accept edits</i>
                 auto-approves file edits, <i>Plan</i> makes no changes, <i>Bypass</i> runs everything.</li>
@@ -246,6 +290,7 @@
              <code title="Serve without a password (open access on your LAN).">--no-pass</code>,
              <code title="Allow new sessions in any folder, not just existing projects.">--free-style</code>,
              <code title="Don't read past sessions/transcripts from disk.">--no-history</code>,
+             <code title="Show an in-browser terminal to run shell commands.">--commands-allowed</code>,
              <code title="Port to serve the web UI on (default 8787).">--port &lt;n&gt;</code>,
              <code title="Show CLI help.">--help</code>.</p>
         </div>
@@ -271,6 +316,11 @@
 
   <div id="minimizedBar" class="minimized-bar" hidden></div>
   <div id="toast" class="toast" hidden></div>
+
+  <!-- Fullscreen image viewer -->
+  <div id="lightbox" class="lightbox" hidden>
+    <img id="lightboxImg" alt="" />
+  </div>
 
   <script src="/app.js"></script>
 </body>
