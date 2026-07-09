@@ -29,7 +29,7 @@ public sealed class CommandLineOptions
     /// <summary>When true, do not read past sessions/transcripts from disk.</summary>
     public bool NoHistory { get; init; }
 
-    /// <summary>When true, expose an in-browser terminal that runs shell commands in the session's folder.</summary>
+    /// <summary>When true, expose an in-browser terminal for running arbitrary shell commands.</summary>
     public bool CommandsAllowed { get; init; }
 
     /// <summary>When true, suppress the ASCII-art logo printed at startup.</summary>
@@ -146,7 +146,7 @@ public sealed class CommandLineOptions
 
     public static string HelpText =>
         """
-        HeadlessCoder - manage your coding-agent CLIs (Claude Code, Gemini, Copilot) from
+        HeadlessCoder - manage your coding-agent CLIs (Claude Code, Antigravity, Copilot) from
         your phone or any device on your LAN.
 
         Usage:
@@ -159,8 +159,7 @@ public sealed class CommandLineOptions
           -fs, --free-style   Allow new sessions in ANY folder (not just existing projects).
               --no-history    Do not read past sessions/transcripts from disk.
           -ca, --commands-allowed
-                              Enable the in-browser terminal (runs shell commands in the
-                              session's working directory). Off by default.
+                              Show an in-browser terminal to run shell commands (use with care).
           -nl, --no-logo      Don't print the ASCII-art logo at startup.
           -l,  --logs         Enable framework logging output (suppressed by default).
           -p,  --port <n>     Port to serve the web UI on (default: 8787).

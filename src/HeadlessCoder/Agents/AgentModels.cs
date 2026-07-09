@@ -22,6 +22,15 @@ public sealed class AgentEvent
     public int? Turns { get; init; }
     public bool? IsError { get; init; }
 
+    // usage / context (result-only; populated for CLIs that report tokens, e.g. Claude)
+    public long? InputTokens { get; init; }
+    public long? OutputTokens { get; init; }
+    public long? CacheReadTokens { get; init; }
+    public long? CacheCreateTokens { get; init; }
+    public long? ContextTokens { get; init; }   // tokens occupying the context window this turn
+    public long? ContextWindow { get; init; }   // the model's context window size
+    public string? Model { get; init; }
+
     // error-only field
     public string? Message { get; init; }
 
@@ -33,13 +42,16 @@ public sealed class AgentEvent
     public static AgentEvent Error(string message) => new() { Kind = "error", Message = message };
 }
 
+/// <summary>A selectable option (value sent to the CLI, human label shown in the UI).</summary>
+public sealed record AgentOption(string Value, string Label);
+
 /// <summary>
 /// Capabilities + install/auth status for one agent CLI, surfaced to the doctor
 /// screen and the UI.
 /// </summary>
 public sealed class AgentDescriptor
 {
-    public required string Id { get; init; }          // "claude" | "gemini" | "copilot"
+    public required string Id { get; init; }          // "claude" | "antigravity" | "copilot"
     public required string DisplayName { get; init; }
 
     public bool Installed { get; set; }
@@ -52,6 +64,11 @@ public sealed class AgentDescriptor
 
     public bool SupportsHistory { get; init; }        // can we read past transcripts?
     public bool SupportsResume { get; init; }         // can we continue a session by id?
+
+    // What the composer should offer for THIS agent (the UI rebuilds its controls from these).
+    public IReadOnlyList<AgentOption>? Models { get; set; }          // extra --model choices
+    public IReadOnlyList<AgentOption>? PermissionModes { get; set; } // working modes
+    public bool SupportsEffort { get; set; }                         // show the Effort control?
 
     /// <summary>ready | partial | missing</summary>
     public string Status =>

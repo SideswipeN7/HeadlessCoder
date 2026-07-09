@@ -245,7 +245,7 @@ body {
   border: 1px solid var(--hairline-soft);
 }
 .agent-badge.claude { color: var(--primary); }
-.agent-badge.gemini { color: var(--accent-teal); }
+.agent-badge.antigravity { color: var(--accent-teal); }
 .agent-badge.copilot { color: var(--muted); }
 
 /* ---- Main / chat -------------------------------------------------------- */
@@ -310,6 +310,9 @@ body {
   flex-direction: column;
   gap: 18px;
 }
+/* Keep transcript items at their natural height — without this the flex column
+   squeezes them (a collapsed tool card shrinks to a thin bar) instead of scrolling. */
+.transcript > * { flex-shrink: 0; }
 
 .welcome { margin: auto; max-width: 460px; text-align: center; padding: 40px 20px; }
 .welcome-mark { font-size: 34px; color: var(--primary); margin-bottom: 12px; }
@@ -436,7 +439,24 @@ body {
 .composer { border-top: 1px solid var(--hairline); padding: 12px 20px 16px; background: var(--canvas); }
 .composer-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
 .ctrl { display: flex; align-items: center; gap: 6px; }
+.ctrl-effort { position: relative; }
 .ctrl-label { font-size: 12px; color: var(--muted); }
+.ctrl-info {
+  border: none; background: none; cursor: pointer; color: var(--muted);
+  font-size: 13px; padding: 0 2px; line-height: 1;
+}
+.ctrl-info:hover { color: var(--primary); }
+.info-pop {
+  position: absolute; bottom: calc(100% + 8px); left: 0;
+  width: 280px; max-width: 80vw; z-index: 70;
+  background: var(--surface-card); color: var(--ink);
+  border: 1px solid var(--hairline); border-radius: var(--r-md);
+  padding: 10px 12px; font-size: 12.5px; line-height: 1.5;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+.info-pop[hidden] { display: none; }
+.info-pop ul { margin: 6px 0 0; padding-left: 18px; }
+.info-pop li { margin: 2px 0; }
 .ctrl select {
   font: inherit;
   font-size: 13px;
@@ -455,10 +475,64 @@ body {
   white-space: nowrap;
   max-width: 45%;
 }
+/* Context-window meter chip (populated after each turn for token-reporting agents). */
+.ctx-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); }
+.ctx-bar {
+  width: 54px; height: 6px; border-radius: 999px;
+  background: var(--hairline); overflow: hidden; flex: none;
+}
+.ctx-fill {
+  display: block; height: 100%; width: 0;
+  background: var(--primary); border-radius: 999px; transition: width .3s ease;
+}
+.ctx-fill.high { background: var(--error); }
+.ctx-text { font-family: var(--mono); white-space: nowrap; font-size: 11.5px; color: var(--muted); }
+.queue-chip { font-size: 11.5px; color: var(--primary); font-family: var(--mono); }
+
+/* Usage / context chip + details popover. */
+.usage-wrap { position: relative; display: inline-flex; }
+.usage-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: none; border: none; cursor: pointer; padding: 2px 4px;
+}
+.usage-chip:hover .ctx-text { color: var(--ink); }
+.usage-pop { width: 240px; left: auto; right: 0; }
+.usage-pop .u-row { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.usage-pop .u-row span { color: var(--muted); }
+.usage-pop .u-row b { font-family: var(--mono); }
+.usage-pop .u-note { margin-top: 8px; color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+
+/* Pasted-image attachments waiting to be sent. */
+.attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.attach-chip {
+  position: relative; width: 60px; height: 60px;
+  border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--hairline);
+}
+.attach-chip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.attach-remove {
+  position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
+  border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.6); color: #fff;
+  font-size: 10px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* Image thumbnails shown inside a sent user message. */
+.msg-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.msg-image { max-width: 220px; max-height: 220px; border-radius: var(--r-md); border: 1px solid var(--hairline); cursor: zoom-in; }
+.attach-chip img { cursor: zoom-in; }
+
+/* Fullscreen image viewer. */
+.lightbox {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.85); cursor: zoom-out; padding: 24px;
+}
+.lightbox[hidden] { display: none; }
+.lightbox img { max-width: 100%; max-height: 100%; border-radius: var(--r-md); box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5); }
+
 .composer-row { display: flex; gap: 10px; align-items: flex-end; }
 #input {
   flex: 1;
-  resize: none;
+  resize: vertical;            /* let the user drag the input taller */
   font: inherit;
   font-size: 15px;
   line-height: 1.5;
@@ -467,14 +541,18 @@ body {
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
   padding: 11px 14px;
-  max-height: 200px;
-  min-height: 44px;
+  max-height: 260px;
+  min-height: 130px;          /* ~5 lines by default */
 }
 #input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
+/* Expanded composer: show ~5 lines by default and allow growing up to half the viewport. */
+.composer.expanded #input { min-height: 132px; max-height: 50vh; }
+.expand-btn { height: 44px; width: 44px; }
+.composer.expanded .expand-btn { color: var(--primary); border-color: var(--primary); }
 
 /* ---- Buttons ------------------------------------------------------------ */
 .btn {
@@ -730,24 +808,65 @@ body {
   .chat-title { font-size: 18px; }
   .cwd-chip { max-width: 100%; margin-left: 0; }
   .custom-grid { grid-template-columns: 1fr; }
-  .terminal-modal { width: min(560px, 96vw); }
-  .term-out { height: 42vh; }
 }
 
-/* ---- Terminal button + composer shrink ---------------------------------- */
-.mono-btn { font-family: var(--mono); font-size: 13px; font-weight: 600; }
-
-.input-wrap { position: relative; flex: 1; display: flex; }
-.input-wrap #input { flex: 1; }
-.shrink-btn {
-  position: absolute; top: 6px; right: 8px;
-  width: 24px; height: 24px; border-radius: 6px;
-  border: 1px solid var(--hairline); background: var(--canvas); color: var(--muted);
+/* ---- In-browser terminal (--commands-allowed), docked under the composer -- */
+.terminal-window {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  height: min(320px, 45vh);
+  background: var(--surface-dark);
+  color: var(--on-dark);
+  border-top: 1px solid var(--surface-dark-elevated);
+  overflow: hidden;
+}
+/* Higher specificity than `.terminal-window { display: flex }`, so hiding works. */
+.terminal-window[hidden] { display: none; }
+/* Minimized: collapse to just the header bar sitting right under the input. */
+.terminal-window.minimized { height: auto; }
+.terminal-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  background: var(--surface-dark-elevated);
+  flex: none;
+  cursor: pointer;      /* click the bar to restore when minimized */
+}
+.terminal-title { font-family: var(--mono); font-size: 12.5px; font-weight: 600; flex: none; }
+.terminal-cwd {
+  font-family: var(--mono); font-size: 11px; color: var(--on-dark-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;
+}
+.terminal-head-actions { display: flex; gap: 2px; flex: none; }
+.terminal-hbtn {
+  border: none; background: none; color: var(--on-dark-soft);
   cursor: pointer; font-size: 13px; line-height: 1;
-  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: var(--r-md);
 }
-.shrink-btn:hover { background: var(--surface-card); color: var(--ink); }
-.shrink-btn[hidden] { display: none; }
+.terminal-hbtn:hover { background: var(--surface-dark-soft); color: var(--on-dark); }
+.terminal-window.minimized .terminal-body { display: none; }
+.terminal-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.terminal-output {
+  flex: 1; overflow-y: auto;
+  padding: 10px 12px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+  color: var(--on-dark-soft);
+}
+.terminal-output .t-cmd { color: var(--accent-teal); font-weight: 600; margin-top: 4px; }
+.terminal-output .t-err { color: var(--error); }
+.terminal-output .t-exit { color: var(--on-dark-soft); opacity: 0.7; font-style: italic; }
+.terminal-input-row {
+  display: flex; align-items: center; gap: 8px;
+  border-top: 1px solid var(--surface-dark-elevated);
+  padding: 9px 12px; flex: none;
+}
+.terminal-prompt { font-family: var(--mono); color: var(--accent-teal); }
+#terminalInput {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--on-dark); font-family: var(--mono); font-size: 12.5px;
+}
+#terminalInput::placeholder { color: var(--on-dark-soft); opacity: 0.6; }
 
 /* ---- Settings: Config panel --------------------------------------------- */
 .config-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 18px; }
@@ -764,26 +883,3 @@ body {
   border: 1px solid var(--hairline); border-radius: var(--r-md);
   background: #fff; padding: 8px; image-rendering: pixelated;
 }
-
-/* ---- Terminal modal ----------------------------------------------------- */
-.terminal-modal { width: min(680px, 94vw); }
-.term-cwd { font-family: var(--mono); margin: -6px 0 10px; word-break: break-all; }
-.term-out {
-  height: 340px; overflow: auto; margin: 0 0 12px;
-  background: var(--surface-dark); color: var(--on-dark);
-  border-radius: var(--r-md); padding: 12px 14px;
-  font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
-  white-space: pre-wrap; word-break: break-word;
-}
-.term-line { white-space: pre-wrap; }
-.term-cmd { color: var(--primary); font-weight: 600; }
-.term-stderr { color: var(--error); }
-.term-exit { color: var(--muted); font-style: italic; margin: 4px 0 8px; }
-.term-form { display: flex; align-items: center; gap: 8px; }
-.term-prompt { font-family: var(--mono); color: var(--muted); flex: none; }
-.term-input {
-  flex: 1; font-family: var(--mono); font-size: 14px;
-  color: var(--ink); background: var(--canvas);
-  border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 9px 12px;
-}
-.term-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }

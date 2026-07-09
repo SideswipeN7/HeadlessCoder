@@ -12,8 +12,7 @@ const state = {
   collapsed: new Set(), // collapsed group keys
   config: {},          // { auth, freeStyle, noHistory } from /api/health
   privateIds: new Set(), // in-private session ids (kept out of the list)
-  minimized: [],       // minimized in-private sessions
-  termRunning: false   // a terminal command is streaming
+  minimized: []        // minimized in-private sessions
 };
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +28,40 @@ window.addEventListener("DOMContentLoaded", () => {
   $("sendBtn").addEventListener("click", send);
   $("input").addEventListener("keydown", onInputKey);
   $("input").addEventListener("input", autoGrow);
+  $("input").addEventListener("paste", onPaste);
+  $("expandBtn").addEventListener("click", toggleExpand);
+  $("effortInfo").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const p = $("effortPop");
+    p.hidden = !p.hidden;
+  });
+  $("usageChip").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const p = $("usagePop");
+    p.hidden = !p.hidden;
+  });
+  document.addEventListener("click", (e) => {
+    const p = $("effortPop");
+    if (p && !p.hidden && !e.target.closest(".ctrl-effort")) p.hidden = true;
+    const u = $("usagePop");
+    if (u && !u.hidden && !e.target.closest(".usage-wrap")) u.hidden = true;
+  });
+  $("terminalBtn").addEventListener("click", toggleTerminal);
+  $("terminalForm").addEventListener("submit", runTerminalCommand);
+  $("terminalInput").addEventListener("keydown", onTerminalKey);
+  // Click any thumbnail (in a message or the attachment tray) to view it fullscreen.
+  document.addEventListener("click", (e) => {
+    const img = e.target.closest(".msg-image, .attach-chip img");
+    if (img) openLightbox(img.src);
+  });
+  $("lightbox").addEventListener("click", () => { $("lightbox").hidden = true; });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("lightbox").hidden) $("lightbox").hidden = true;
+  });
+  $("terminalMinBtn").addEventListener("click", (e) => { e.stopPropagation(); minimizeTerminal(); });
+  $("terminalCloseBtn").addEventListener("click", (e) => { e.stopPropagation(); $("terminalWindow").hidden = true; });
+  $("terminalClearBtn").addEventListener("click", (e) => { e.stopPropagation(); $("terminalOutput").innerHTML = ""; });
+  $("terminalHead").addEventListener("click", restoreTerminal);
   $("newForm").addEventListener("submit", onNewSubmit);
 
   for (const seg of document.querySelectorAll("#groupToggle .seg")) {
@@ -38,10 +71,6 @@ window.addEventListener("DOMContentLoaded", () => {
   $("gearBtn").addEventListener("click", () => openSettings());
   $("shareBtn").addEventListener("click", shareCurrent);
   $("minimizeBtn").addEventListener("click", minimizeCurrent);
-  $("terminalBtn").addEventListener("click", openTerminal);
-  $("terminalClose").addEventListener("click", () => $("terminalDialog").close());
-  $("terminalForm").addEventListener("submit", runTerminalCommand);
-  $("shrinkInput").addEventListener("click", shrinkInputBox);
   $("renameBtn").addEventListener("click", openRename);
   $("renameForm").addEventListener("submit", onRenameSubmit);
   $("chatTitle").addEventListener("dblclick", openRename);
@@ -68,9 +97,9 @@ window.addEventListener("DOMContentLoaded", () => {
 async function loadConfig() {
   try { state.config = await (await fetch("/api/health")).json(); }
   catch { state.config = {}; }
-  // Config may resolve after a deep link already opened a session; refresh the
-  // topbar so the terminal button appears once we know --commands-allowed.
-  updateSessionButtons();
+  // Reveal the terminal button only when the server allows commands.
+  const tbtn = $("terminalBtn");
+  if (tbtn) tbtn.hidden = !(state.config && state.config.commandsAllowed);
 }
 
 // ---- Settings tabs ---------------------------------------------------------
@@ -430,6 +459,29 @@ async function loadAgents() {
 }
 
 function agentById(id) { return state.agents.find((a) => a.id === id); }
+
+// Rebuild the composer's Mode / Model / Effort controls for the given agent, so
+// each agent shows only the modes/models it actually supports.
+function applyAgentControls(providerId) {
+  const a = agentById(providerId) || {};
+  const modes = (a.permissionModes && a.permissionModes.length)
+    ? a.permissionModes : [{ value: "default", label: "Default" }];
+  fillSelect($("permMode"), modes);
+  fillSelect($("model"), [{ value: "", label: "Default" }].concat(a.models || []));
+  const effortCtrl = document.querySelector(".ctrl-effort");
+  if (effortCtrl) effortCtrl.hidden = !a.supportsEffort;
+}
+function fillSelect(sel, options) {
+  const prev = sel.value;
+  sel.innerHTML = "";
+  for (const o of options) {
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+  }
+  if (options.some((o) => o.value === prev)) sel.value = prev;
+}
 function installedAgents() { return state.agents.filter((a) => a.installed); }
 function agentName(id) { const a = agentById(id); return a ? a.displayName : id; }
 
@@ -569,6 +621,7 @@ async function openSession(sess) {
   $("chatTitle").textContent = sess.title || "Session";
   $("chatSub").textContent = `${agentName(sess.provider)} · ${shortenPath(sess.cwd)}`;
   $("cwdChip").textContent = shortenPath(sess.cwd);
+  applyAgentControls(sess.provider);
   $("composer").hidden = false;
   if (sess.private && sess.id) state.privateIds.add(sess.id);
   updateSessionButtons();
@@ -579,14 +632,12 @@ async function openSession(sess) {
 // Topbar button visibility:
 //   rename / share -> the selected (open) session, once it has an id
 //   minimize       -> in-private sessions only
-//   terminal       -> only when started with --commands-allowed and a session is open
 function updateSessionButtons() {
   const s = state.current;
   const hasId = !!(s && s.id);
   $("renameBtn").hidden = !hasId;
   $("shareBtn").hidden = !hasId;
   $("minimizeBtn").hidden = !(s && s.private);
-  $("terminalBtn").hidden = !(s && state.config.commandsAllowed);
   $("privateBadge").hidden = !(s && s.private);
 }
 
@@ -734,6 +785,8 @@ function showToast(msg) {
 
 async function loadTranscript(sess) {
   const t = $("transcript");
+  resetUsage();
+  resetTerminalForSession();
   t.innerHTML = `<div class="empty muted">Loading transcript…</div>`;
   try {
     const supportsHistory = (agentById(sess.provider) || {}).supportsHistory !== false;
@@ -744,6 +797,13 @@ async function loadTranscript(sess) {
     if (!msgs.length) addWelcomeInline(sess);
     else for (const m of msgs) renderTranscriptMessage(m);
     scrollBottom();
+    // Show the session's context/usage straight away, without waiting for a new turn.
+    if (sess.id && supportsHistory) {
+      fetch(`/api/sessions/${encodeURIComponent(sess.provider)}/${encodeURIComponent(sess.project)}/${encodeURIComponent(sess.id)}/usage`)
+        .then((r) => r.json())
+        .then((u) => { if (u) updateUsage(u); })
+        .catch(() => {});
+    }
   } catch {
     t.innerHTML = `<div class="empty muted">Failed to load transcript.</div>`;
   }
@@ -765,89 +825,6 @@ function renderTranscriptMessage(m) {
   if (m.role === "tool") return addToolChip(m.toolName || "tool", m.text);
 }
 
-// ---- Terminal --------------------------------------------------------------
-// Available only when the host was started with --commands-allowed. Runs the
-// command in the current session's working directory and streams stdout/stderr.
-function openTerminal() {
-  const s = state.current;
-  if (!s || !state.config.commandsAllowed) return;
-  $("termCwd").textContent = s.cwd ? "cwd: " + s.cwd : "";
-  $("terminalDialog").showModal();
-  setTimeout(() => $("termInput").focus(), 50);
-}
-
-async function runTerminalCommand(e) {
-  e.preventDefault();
-  if (state.termRunning) return;
-  const s = state.current;
-  const input = $("termInput");
-  const cmd = input.value.trim();
-  if (!cmd || !s) return;
-  input.value = "";
-  termEcho("$ " + cmd, "cmd");
-  state.termRunning = true;
-  $("termRun").disabled = true;
-
-  try {
-    const resp = await fetch("/api/terminal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cwd: s.cwd, command: cmd }),
-    });
-    if (!resp.ok || !resp.body) {
-      let msg = `HTTP ${resp.status}`;
-      try { const j = await resp.json(); if (j.error) msg = j.error; } catch { /* ignore */ }
-      termEcho(msg, "stderr");
-    } else {
-      await readTerminalStream(resp);
-    }
-  } catch (err) {
-    termEcho(String(err && err.message ? err.message : err), "stderr");
-  } finally {
-    state.termRunning = false;
-    $("termRun").disabled = false;
-    $("termInput").focus();
-  }
-}
-
-async function readTerminalStream(resp) {
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let idx;
-    while ((idx = buf.indexOf("\n\n")) >= 0) {
-      handleTermSse(buf.slice(0, idx));
-      buf = buf.slice(idx + 2);
-    }
-  }
-}
-
-function handleTermSse(frame) {
-  let event = "out";
-  const dataLines = [];
-  for (const line of frame.split("\n")) {
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
-  }
-  let data;
-  try { data = JSON.parse(dataLines.join("\n")); } catch { return; }
-  if (event === "out") termEcho(data.text || "", data.stream || "stdout");
-  else if (event === "exit") termEcho(`— exit ${data.code} —`, "exit");
-}
-
-function termEcho(text, kind) {
-  const out = $("termOut");
-  const line = document.createElement("div");
-  line.className = "term-line term-" + (kind || "stdout");
-  line.textContent = text;
-  out.appendChild(line);
-  out.scrollTop = out.scrollHeight;
-}
-
 // ---- Composing / sending ---------------------------------------------------
 function onInputKey(e) {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); return; }
@@ -862,56 +839,279 @@ function cyclePermMode() {
 }
 function autoGrow() {
   const el = $("input");
+  const expanded = $("composer").classList.contains("expanded");
+  const max = expanded ? Math.round(window.innerHeight * 0.5) : 260;
   el.style.height = "auto";
-  const h = Math.min(el.scrollHeight, 200);
-  el.style.height = h + "px";
-  // Offer to shrink once the box has grown past a single row (min-height is 44px).
-  $("shrinkInput").hidden = h <= 48;
+  el.style.height = Math.min(el.scrollHeight, max) + "px";
 }
 
-// Collapse the composer back to one line (content is kept, just scrolled).
-function shrinkInputBox() {
-  const el = $("input");
-  el.style.height = "auto";     // min-height (44px) takes over -> single line
-  el.scrollTop = 0;
-  $("shrinkInput").hidden = true;
-  el.focus();
+// Toggle the composer between the compact one-line box and a taller ~5-line box.
+function toggleExpand() {
+  const c = $("composer");
+  const expanded = c.classList.toggle("expanded");
+  const btn = $("expandBtn");
+  btn.textContent = expanded ? "⤡" : "⤢";
+  btn.title = expanded ? "Shrink input" : "Expand input (5 lines)";
+  autoGrow();
+  $("input").focus();
 }
 
-async function send() {
-  if (state.sending || !state.current) return;
+// ---- Terminal (per session; only when server started with --commands-allowed) --
+function toggleTerminal() {
+  const w = $("terminalWindow");
+  if (w.hidden) {
+    w.hidden = false;
+    w.classList.remove("minimized");
+    updateTerminalCwd();
+    $("terminalInput").focus();
+  } else {
+    w.hidden = true;
+  }
+}
+function minimizeTerminal() { $("terminalWindow").classList.add("minimized"); }
+function restoreTerminal() {
+  const w = $("terminalWindow");
+  if (w.classList.contains("minimized")) {
+    w.classList.remove("minimized");
+    $("terminalInput").focus();
+  }
+}
+function updateTerminalCwd() {
+  const el = $("terminalCwd");
+  if (el) el.textContent = (state.current && state.current.cwd) || "";
+}
+// The terminal is scoped to the current session: reset it when the session changes.
+function resetTerminalForSession() {
+  const out = $("terminalOutput");
+  if (out) out.innerHTML = "";
+  updateTerminalCwd();
+}
+function termAppend(text, cls) {
+  const out = $("terminalOutput");
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = text;
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+  state.termOut = null;               // next chunk starts a fresh output block
+}
+// Append a raw output chunk to the current command's output block (live, no per-line divs).
+function termChunk(text, isErr) {
+  const out = $("terminalOutput");
+  if (!state.termOut) {
+    state.termOut = document.createElement("div");
+    state.termOut.className = "t-out";
+    out.appendChild(state.termOut);
+  }
+  const node = isErr ? document.createElement("span") : document.createTextNode(text);
+  if (isErr) { node.className = "t-err"; node.textContent = text; }
+  state.termOut.appendChild(node);
+  out.scrollTop = out.scrollHeight;
+}
+async function runTerminalCommand(e) {
+  if (e) e.preventDefault();
+  if (state.termBusy) return;
+  const input = $("terminalInput");
+  const cmd = input.value.trim();
+  if (!cmd) return;
+  input.value = "";
+  state.termHistory = state.termHistory || [];
+  if (state.termHistory[state.termHistory.length - 1] !== cmd) state.termHistory.push(cmd);
+  state.termHistIdx = state.termHistory.length;
+  termAppend("$ " + cmd, "t-cmd");
+  state.termBusy = true;
+  try {
+    const resp = await fetch("/api/terminal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: cmd, cwd: (state.current && state.current.cwd) || "" }),
+    });
+    if (resp.status === 403) { termAppend("Terminal is disabled on the server.", "t-err"); return; }
+    if (!resp.ok || !resp.body) { termAppend("HTTP " + resp.status, "t-err"); return; }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        handleTermSse(buf.slice(0, idx));
+        buf = buf.slice(idx + 2);
+      }
+    }
+  } catch (err) {
+    termAppend(String(err && err.message ? err.message : err), "t-err");
+  } finally {
+    state.termBusy = false;
+    $("terminalInput").focus();
+  }
+}
+function handleTermSse(frame) {
+  let event = "line";
+  const dataLines = [];
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+  }
+  if (event !== "line") return;
+  let obj;
+  try { obj = JSON.parse(dataLines.join("\n")); } catch { return; }
+  if (obj.kind === "exit") termAppend(`[exit ${obj.text}]`, "t-exit");
+  else termChunk(obj.text, obj.kind === "stderr");
+}
+
+// Up/Down cycles previous terminal commands, like a real shell.
+function onTerminalKey(e) {
+  const hist = state.termHistory || [];
+  if (e.key === "ArrowUp") {
+    if (!hist.length) return;
+    e.preventDefault();
+    state.termHistIdx = Math.max(0, (state.termHistIdx ?? hist.length) - 1);
+    $("terminalInput").value = hist[state.termHistIdx] || "";
+  } else if (e.key === "ArrowDown") {
+    if (!hist.length) return;
+    e.preventDefault();
+    state.termHistIdx = Math.min(hist.length, (state.termHistIdx ?? hist.length) + 1);
+    $("terminalInput").value = state.termHistIdx >= hist.length ? "" : hist[state.termHistIdx];
+  }
+}
+
+// Sending never blocks the composer: each submit is queued and the queue is
+// drained sequentially against the SAME session, so several inputs typed while
+// a reply streams all land in one conversation.
+function send() {
+  if (!state.current) return;
   const input = $("input");
   const text = input.value.trim();
-  if (!text) return;
+  const images = (state.pendingImages || []).slice();
+  if (!text && !images.length) return;
 
   input.value = "";
   autoGrow();
-  addUserBubble(text);
+  addUserBubble(text, images);
+  state.pendingImages = [];
+  renderAttachments();
   scrollBottom();
 
-  state.sending = true;
-  setSending(true);
-
-  const body = {
-    provider: state.current.provider || "claude",
-    sessionId: state.current.id || null,
-    cwd: state.current.cwd,
-    message: text,
+  state.queue = state.queue || [];
+  state.queue.push({
+    text,
+    images,
     permissionMode: $("permMode").value,
     model: $("model").value || null,
     effort: $("effort").value || null,
-  };
+  });
+  updateQueueIndicator();
+  processQueue();
+}
 
-  try {
-    await streamMessage(body);
-  } catch (e) {
-    addErrorLine(String(e && e.message ? e.message : e));
-  } finally {
-    state.sending = false;
-    setSending(false);
+async function processQueue() {
+  if (state.sending) return;              // a drain loop is already running
+  state.sending = true;
+  setSending(true);
+  while (state.queue && state.queue.length) {
+    const item = state.queue.shift();
+    updateQueueIndicator();
+    const paths = (item.images || []).map((im) => im.path).filter(Boolean);
+    let message = item.text;
+    if (paths.length)
+      message += (message ? "\n\n" : "") + "Attached image(s):\n" + paths.join("\n");
+
+    const body = {
+      provider: state.current.provider || "claude",
+      sessionId: state.current.id || null,   // resumes once the first turn assigns an id
+      cwd: state.current.cwd,
+      message,
+      permissionMode: item.permissionMode,
+      model: item.model,
+      effort: item.effort,
+    };
+    try {
+      await streamMessage(body);
+    } catch (e) {
+      addErrorLine(String(e && e.message ? e.message : e));
+    }
     endLive();
-    loadSessions();
   }
+  state.sending = false;
+  setSending(false);
+  updateQueueIndicator();
+  loadSessions();
+}
+
+function updateQueueIndicator() {
+  const n = state.queue ? state.queue.length : 0;
+  const el = $("queueChip");
+  if (!el) return;
+  if (n > 0) { el.textContent = `${n} queued`; el.hidden = false; }
+  else el.hidden = true;
+}
+
+// ---- Image attachments (paste to attach) -----------------------------------
+async function onPaste(e) {
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  const files = [];
+  for (const it of items) {
+    if (it.kind === "file" && it.type.startsWith("image/")) {
+      const f = it.getAsFile();
+      if (f) files.push(f);
+    }
+  }
+  if (!files.length) return;          // no image → let the normal text paste happen
+  e.preventDefault();
+  for (const f of files) await attachImage(f);
+}
+
+async function attachImage(file) {
+  state.pendingImages = state.pendingImages || [];
+  try {
+    const dataUrl = await readAsDataUrl(file);
+    const base64 = String(dataUrl).split(",")[1] || "";
+    const resp = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: file.name || "paste.png", dataBase64: base64 }),
+    });
+    if (!resp.ok) { showToast("Image upload failed"); return; }
+    const { path } = await resp.json();
+    state.pendingImages.push({ path, dataUrl });
+    renderAttachments();
+  } catch { showToast("Image upload failed"); }
+}
+
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function renderAttachments() {
+  const wrap = $("attachments");
+  if (!wrap) return;
+  const imgs = state.pendingImages || [];
+  wrap.innerHTML = "";
+  if (!imgs.length) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  imgs.forEach((im, i) => {
+    const chip = document.createElement("div");
+    chip.className = "attach-chip";
+    const img = document.createElement("img");
+    img.src = im.dataUrl || im.path;
+    chip.appendChild(img);
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.className = "attach-remove";
+    rm.textContent = "✕";
+    rm.title = "Remove";
+    rm.addEventListener("click", () => { state.pendingImages.splice(i, 1); renderAttachments(); });
+    chip.appendChild(rm);
+    wrap.appendChild(chip);
+  });
 }
 
 async function streamMessage(body) {
@@ -997,10 +1197,26 @@ function dispatchAgentEvent(ev) {
 }
 
 // ---- Bubble builders -------------------------------------------------------
-function addUserBubble(text) {
+function addUserBubble(text, images) {
   const d = document.createElement("div");
   d.className = "msg msg-user";
-  d.textContent = text;
+  if (images && images.length) {
+    const gal = document.createElement("div");
+    gal.className = "msg-images";
+    for (const im of images) {
+      const img = document.createElement("img");
+      img.className = "msg-image";
+      img.src = im.dataUrl || im.path;
+      gal.appendChild(img);
+    }
+    d.appendChild(gal);
+  }
+  if (text) {
+    const body = document.createElement("div");
+    body.className = "md";
+    body.innerHTML = renderMarkdown(text);   // format the user's text (e.g. "* " → bullet list)
+    d.appendChild(body);
+  }
   $("transcript").appendChild(d);
 }
 function addAssistantBubble(text) {
@@ -1072,6 +1288,12 @@ function clip(s) { return s.length > 100 ? s.slice(0, 100) + "…" : s; }
 function addResultLine(ev) {
   const parts = [];
   if (typeof ev.durationMs === "number") parts.push(`${(ev.durationMs / 1000).toFixed(1)}s`);
+  if (typeof ev.inputTokens === "number" || typeof ev.outputTokens === "number")
+    parts.push(`↑${fmtTokens(ev.inputTokens || 0)} ↓${fmtTokens(ev.outputTokens || 0)}`);
+  if (typeof ev.cacheReadTokens === "number" && ev.cacheReadTokens > 0)
+    parts.push(`cache ${fmtTokens(ev.cacheReadTokens)}`);
+  if (typeof ev.contextTokens === "number" && ev.contextWindow > 0)
+    parts.push(`ctx ${fmtTokens(ev.contextTokens)}/${fmtTokens(ev.contextWindow)} (${Math.round(ev.contextTokens / ev.contextWindow * 100)}%)`);
   if (typeof ev.costUsd === "number" && ev.costUsd > 0) parts.push(`$${ev.costUsd.toFixed(4)}`);
   if (ev.turns) parts.push(`${ev.turns} turns`);
   if (ev.isError) parts.push("error");
@@ -1079,7 +1301,68 @@ function addResultLine(ev) {
   d.className = "result-line";
   d.textContent = parts.length ? `— ${parts.join(" · ")} —` : "— done —";
   $("transcript").appendChild(d);
+  updateUsage(ev);
   scrollBottom();
+}
+
+// Compact token counts: 1234 → "1.2k", 45000 → "45k", 1200000 → "1.2M".
+function fmtTokens(n) {
+  if (typeof n !== "number") return "0";
+  if (n < 1000) return String(n);
+  if (n < 1000000) return (n / 1000).toFixed(n < 10000 ? 1 : 0) + "k";
+  return (n / 1000000).toFixed(1) + "M";
+}
+
+// Update the composer's usage/context chip after a turn that reported tokens.
+function updateUsage(ev) {
+  const wrap = $("usageWrap");
+  if (!wrap) return;
+  const hasTokens = typeof ev.inputTokens === "number" || typeof ev.contextTokens === "number";
+  if (!hasTokens) return;               // agent didn't report usage — leave the chip hidden
+  state.lastUsage = ev;
+  const fill = $("ctxFill");
+  if (typeof ev.contextTokens === "number" && ev.contextWindow > 0) {
+    const pct = Math.min(100, Math.round(ev.contextTokens / ev.contextWindow * 100));
+    fill.style.width = pct + "%";
+    fill.classList.toggle("high", pct >= 80);
+    $("ctxText").textContent = `ctx ${pct}%`;
+  } else {
+    fill.style.width = "0%";
+    $("ctxText").textContent = "usage";
+  }
+  wrap.hidden = false;
+  renderUsagePop(ev);
+}
+function renderUsagePop(ev) {
+  const pop = $("usagePop");
+  if (!pop) return;
+  const row = (k, v) => `<div class="u-row"><span>${k}</span><b>${v}</b></div>`;
+  const rows = [];
+  const model = ev.model ? ev.model.replace(/\[1m\]$/, " (1M ctx)")
+    : (state.current ? agentName(state.current.provider) : "");
+  if (model) rows.push(row("Model", escapeHtml(model)));
+  if (typeof ev.contextTokens === "number" && ev.contextWindow > 0) {
+    const pct = Math.round(ev.contextTokens / ev.contextWindow * 100);
+    rows.push(row("Context", `${fmtTokens(ev.contextTokens)} / ${fmtTokens(ev.contextWindow)} (${pct}%)`));
+  }
+  if (typeof ev.inputTokens === "number") rows.push(row("Input", fmtTokens(ev.inputTokens)));
+  if (typeof ev.outputTokens === "number") rows.push(row("Output", fmtTokens(ev.outputTokens)));
+  if (ev.cacheReadTokens) rows.push(row("Cache read", fmtTokens(ev.cacheReadTokens)));
+  if (ev.cacheCreateTokens) rows.push(row("Cache write", fmtTokens(ev.cacheCreateTokens)));
+  if (typeof ev.costUsd === "number" && ev.costUsd > 0) rows.push(row("Cost", `$${ev.costUsd.toFixed(4)}`));
+  const note = (state.current && state.current.provider === "claude")
+    ? `<div class="u-note">The 5-hour usage limit isn't exposed by the Claude Code CLI, so it can't be shown here.</div>`
+    : "";
+  pop.innerHTML = `<strong>Usage — last turn</strong>${rows.join("")}${note}`;
+}
+function resetUsage() {
+  state.lastUsage = null;
+  const w = $("usageWrap"); if (w) w.hidden = true;
+  const p = $("usagePop"); if (p) p.hidden = true;
+}
+function openLightbox(src) {
+  $("lightboxImg").src = src;
+  $("lightbox").hidden = false;
 }
 function addErrorLine(text) {
   const d = document.createElement("div");
@@ -1188,8 +1471,9 @@ function markActive() {
       el.dataset.id === state.current.id && el.dataset.provider === state.current.provider);
 }
 function setSending(on) {
-  $("sendBtn").disabled = on;
-  $("sendBtn").textContent = on ? "…" : "Send";
+  // Keep the button enabled so more inputs can be queued while a reply streams.
+  $("sendBtn").textContent = on ? "Send ⏳" : "Send";
+  $("composer").classList.toggle("streaming", on);
 }
 function scrollBottom() {
   const t = $("transcript");

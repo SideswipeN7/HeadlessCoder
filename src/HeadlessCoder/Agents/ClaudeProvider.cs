@@ -35,6 +35,20 @@ public sealed class ClaudeProvider : IAgentProvider
             ExecutablePath = exe,
             ConfigFound = _store.IsAvailable,
             SessionStorePath = _store.ProjectsRoot,
+            SupportsEffort = true,
+            PermissionModes = new AgentOption[]
+            {
+                new("default", "Ask"),
+                new("acceptEdits", "Accept edits"),
+                new("plan", "Plan"),
+                new("bypassPermissions", "Bypass (YOLO)"),
+            },
+            Models = new AgentOption[]
+            {
+                new("claude-opus-4-8", "Opus 4.8"),
+                new("claude-sonnet-5", "Sonnet 5"),
+                new("claude-haiku-4-5-20251001", "Haiku 4.5"),
+            },
         };
 
         if (exe is not null)
@@ -56,6 +70,9 @@ public sealed class ClaudeProvider : IAgentProvider
         _store.GetTranscript(projectId, sessionId);
 
     public bool PurgeSession(string sessionId) => _store.DeleteSession(sessionId);
+
+    public AgentUsage? GetLastUsage(string projectId, string sessionId) =>
+        _store.GetLastUsage(projectId, sessionId);
 
     public async IAsyncEnumerable<AgentEvent> SendAsync(
         SendMessageRequest request,
@@ -136,6 +153,21 @@ public sealed class ClaudeProvider : IAgentProvider
                 break;
 
             case "result":
+            {
+                long? inTok = null, outTok = null, cacheRead = null, cacheCreate = null;
+                if (root.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object)
+                {
+                    inTok = GetLong(usage, "input_tokens");
+                    outTok = GetLong(usage, "output_tokens");
+                    cacheRead = GetLong(usage, "cache_read_input_tokens");
+                    cacheCreate = GetLong(usage, "cache_creation_input_tokens");
+                }
+                // The primary model (largest footprint) gives us the context window size.
+                var (model, ctxWindow) = PrimaryModel(root);
+                long? ctxTokens = (inTok ?? 0) + (cacheRead ?? 0) + (cacheCreate ?? 0) > 0
+                    ? (inTok ?? 0) + (cacheRead ?? 0) + (cacheCreate ?? 0)
+                    : null;
+
                 yield return new AgentEvent
                 {
                     Kind = "result",
@@ -143,8 +175,16 @@ public sealed class ClaudeProvider : IAgentProvider
                     CostUsd = GetDouble(root, "total_cost_usd"),
                     Turns = (int?)GetDouble(root, "num_turns"),
                     IsError = root.TryGetProperty("is_error", out var ie) && ie.ValueKind == JsonValueKind.True,
+                    InputTokens = inTok,
+                    OutputTokens = outTok,
+                    CacheReadTokens = cacheRead,
+                    CacheCreateTokens = cacheCreate,
+                    ContextTokens = ctxTokens,
+                    ContextWindow = ctxWindow,
+                    Model = model,
                 };
                 break;
+            }
 
             case "error":
                 yield return AgentEvent.Error(GetString(root, "error") ?? "unknown error");
@@ -157,6 +197,35 @@ public sealed class ClaudeProvider : IAgentProvider
 
     private static double? GetDouble(JsonElement el, string prop) =>
         el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+
+    private static long? GetLong(JsonElement el, string prop) =>
+        el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt64() : null;
+
+    // Claude's result carries a modelUsage map (model → {inputTokens, contextWindow, …}).
+    // Pick the model with the largest token footprint as the primary one and return its
+    // name + context window, so the UI can show how full the window is.
+    private static (string? model, long? contextWindow) PrimaryModel(JsonElement root)
+    {
+        if (!root.TryGetProperty("modelUsage", out var mu) || mu.ValueKind != JsonValueKind.Object)
+            return (null, null);
+
+        string? best = null;
+        long bestFootprint = -1, bestWindow = 0;
+        foreach (var m in mu.EnumerateObject())
+        {
+            if (m.Value.ValueKind != JsonValueKind.Object) continue;
+            long footprint = (GetLong(m.Value, "inputTokens") ?? 0) +
+                             (GetLong(m.Value, "cacheReadInputTokens") ?? 0) +
+                             (GetLong(m.Value, "cacheCreationInputTokens") ?? 0);
+            if (footprint > bestFootprint)
+            {
+                bestFootprint = footprint;
+                best = m.Name;
+                bestWindow = GetLong(m.Value, "contextWindow") ?? 0;
+            }
+        }
+        return (best, bestWindow > 0 ? bestWindow : null);
+    }
 
     private static string Compact(JsonElement el)
     {

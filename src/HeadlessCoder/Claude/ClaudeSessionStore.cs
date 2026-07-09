@@ -118,6 +118,43 @@ public sealed class ClaudeSessionStore
     }
 
     /// <summary>
+    /// Reads the last assistant turn's usage so the UI can show context/usage the
+    /// moment a session is opened, without waiting for a new request.
+    /// </summary>
+    public AgentUsage? GetLastUsage(string projectId, string sessionId)
+    {
+        string file = Path.Combine(_projectsRoot, projectId, sessionId + ".jsonl");
+        if (!File.Exists(file)) return null;
+
+        AgentUsage? last = null;
+        foreach (var line in ReadLinesSafe(file))
+        {
+            if (line.Length == 0) continue;
+            JsonElement root;
+            try { using var doc = JsonDocument.Parse(line); root = doc.RootElement.Clone(); }
+            catch { continue; }
+
+            if (!root.TryGetProperty("type", out var t) || t.GetString() != "assistant") continue;
+            if (!root.TryGetProperty("message", out var m) ||
+                !m.TryGetProperty("usage", out var u) || u.ValueKind != JsonValueKind.Object) continue;
+
+            long? inTok = GetLong(u, "input_tokens"), outTok = GetLong(u, "output_tokens");
+            long? cr = GetLong(u, "cache_read_input_tokens"), cc = GetLong(u, "cache_creation_input_tokens");
+            long ctx = (inTok ?? 0) + (cr ?? 0) + (cc ?? 0);
+            if (ctx == 0) continue;
+
+            string? model = m.TryGetProperty("model", out var mo) ? mo.GetString() : null;
+            // The stored turn doesn't record the window; infer it (200k default, 1M when exceeded).
+            long window = ctx > 200_000 ? 1_000_000 : 200_000;
+            last = new AgentUsage(inTok, outTok, cr, cc, ctx, window, model);
+        }
+        return last;
+    }
+
+    private static long? GetLong(JsonElement el, string prop) =>
+        el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt64() : null;
+
+    /// <summary>
     /// Deletes a session's transcript (the &lt;id&gt;.jsonl file and its sidecar
     /// folder) wherever it lives under the projects root. Used to keep in-private
     /// sessions out of history. Returns true if anything was removed.

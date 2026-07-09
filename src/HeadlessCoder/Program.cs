@@ -10,6 +10,7 @@ using HeadlessCoder.Claude;
 using HeadlessCoder.Hosting;
 using HeadlessCoder.Networking;
 using HeadlessCoder.Platform;
+using HeadlessCoder.Terminal;
 using Microsoft.AspNetCore.Http.Features;
 using QRCoder;
 
@@ -39,7 +40,7 @@ string password = authEnabled
     : "";
 string authToken = authEnabled ? Guid.NewGuid().ToString("N") : "";
 
-// LAN URL + QR content are needed both by the startup banner and the /api/qr + /api/config
+// LAN URL + QR content are needed by the startup banner and the /api/qr + /api/config
 // endpoints, so resolve them once up front. The QR embeds the access key so a scan signs in.
 string host = options.AdvertiseHost ?? NetworkHelper.GetLanIpv4();
 string url = $"http://{host}:{options.Port}";
@@ -56,7 +57,7 @@ builder.Services.AddSingleton<ClaudeSessionStore>(_ => new ClaudeSessionStore())
 builder.Services.AddSingleton<ClaudeCliRunner>(_ => new ClaudeCliRunner());
 builder.Services.AddSingleton<IAgentProvider>(sp =>
     new ClaudeProvider(sp.GetRequiredService<ClaudeSessionStore>(), sp.GetRequiredService<ClaudeCliRunner>()));
-builder.Services.AddSingleton<IAgentProvider, GeminiProvider>();
+builder.Services.AddSingleton<IAgentProvider, AntigravityProvider>();
 builder.Services.AddSingleton<IAgentProvider, CopilotProvider>();
 builder.Services.AddSingleton<IAgentProvider, CodexProvider>();
 builder.Services.AddSingleton<IAgentProvider, OpencodeProvider>();
@@ -67,6 +68,7 @@ builder.Services.AddSingleton<IAgentProvider, DeepSeekProvider>();
 builder.Services.AddSingleton<AgentRegistry>(sp =>
     new AgentRegistry(sp.GetServices<IAgentProvider>()));
 builder.Services.AddSingleton<SessionTitleStore>(_ => new SessionTitleStore());
+builder.Services.AddSingleton<CommandRunner>();
 
 var app = builder.Build();
 var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
@@ -74,7 +76,7 @@ var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 // About / update-check.
 const string ghRepo = "SideswipeN7/HeadlessCoder";
 string appVersion = Assembly.GetExecutingAssembly().GetName().Version is { } ver
-    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.1.0";
+    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.0.5";
 var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
 // ---- Access control ----------------------------------------------------------
@@ -257,6 +259,14 @@ app.MapGet("/api/sessions/{provider}/{project}/{id}", (AgentRegistry reg, string
         : Results.Json(p.GetTranscript(project, id), jsonOpts);
 });
 
+// Last-known usage/context for a session, so the composer shows it the moment you open a chat.
+app.MapGet("/api/sessions/{provider}/{project}/{id}/usage", (AgentRegistry reg, string provider, string project, string id) =>
+{
+    if (options.NoHistory) return Results.Json((object?)null, jsonOpts);
+    var p = reg.Get(provider);
+    return Results.Json(p?.GetLastUsage(project, id), jsonOpts);
+});
+
 // Delete a session's stored transcript (used to keep in-private sessions out of history).
 app.MapPost("/api/sessions/{provider}/{id}/purge", (AgentRegistry reg, string provider, string id) =>
 {
@@ -329,20 +339,59 @@ app.MapPost("/api/message", async (HttpContext ctx, AgentRegistry reg) =>
     }
 });
 
-// Run a shell command in a session's folder and stream its output as SSE.
-// Gated behind --commands-allowed; uses cmd on Windows and /bin/sh elsewhere.
-app.MapPost("/api/terminal", async (HttpContext ctx) =>
+// Save a pasted/uploaded image to a temp file and return its absolute path so the
+// message can reference it and the agent can read it from disk.
+app.MapPost("/api/upload", async (HttpContext ctx) =>
+{
+    string name, dataBase64;
+    using (var doc = await JsonDocument.ParseAsync(ctx.Request.Body, cancellationToken: ctx.RequestAborted))
+    {
+        name = doc.RootElement.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+        dataBase64 = doc.RootElement.TryGetProperty("dataBase64", out var d) ? d.GetString() ?? "" : "";
+    }
+    if (string.IsNullOrEmpty(dataBase64))
+    {
+        ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await ctx.Response.WriteAsync("dataBase64 is required");
+        return;
+    }
+    byte[] bytes;
+    try { bytes = Convert.FromBase64String(dataBase64); }
+    catch { ctx.Response.StatusCode = StatusCodes.Status400BadRequest; await ctx.Response.WriteAsync("invalid base64"); return; }
+    if (bytes.Length > 25 * 1024 * 1024)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+        await ctx.Response.WriteAsync("image too large (max 25 MB)");
+        return;
+    }
+
+    string ext = Path.GetExtension(name);
+    if (string.IsNullOrWhiteSpace(ext) || ext.Length > 6) ext = ".png";
+    string dir = Path.Combine(Path.GetTempPath(), "headlesscoder-uploads");
+    Directory.CreateDirectory(dir);
+    string path = Path.Combine(dir, Guid.NewGuid().ToString("N") + ext);
+    await File.WriteAllBytesAsync(path, bytes, ctx.RequestAborted);
+    await ctx.Response.WriteAsJsonAsync(new { path }, jsonOpts);
+});
+
+// In-browser terminal — only mounted when the server is started with --commands-allowed.
+// Streams a single shell command's stdout/stderr line-by-line over SSE.
+app.MapPost("/api/terminal", async (HttpContext ctx, CommandRunner runner) =>
 {
     if (!options.CommandsAllowed)
     {
         ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
-        await ctx.Response.WriteAsJsonAsync(new { error = "terminal disabled (start with --commands-allowed)" });
+        await ctx.Response.WriteAsync("terminal is disabled (start with --commands-allowed)");
         return;
     }
 
-    var req = await JsonSerializer.DeserializeAsync<TerminalRequest>(
-        ctx.Request.Body, jsonOpts, ctx.RequestAborted);
-    if (req is null || string.IsNullOrWhiteSpace(req.Command))
+    string command, cwd;
+    using (var doc = await JsonDocument.ParseAsync(ctx.Request.Body, cancellationToken: ctx.RequestAborted))
+    {
+        command = doc.RootElement.TryGetProperty("command", out var c) ? c.GetString() ?? "" : "";
+        cwd = doc.RootElement.TryGetProperty("cwd", out var w) ? w.GetString() ?? "" : "";
+    }
+    if (string.IsNullOrWhiteSpace(command))
     {
         ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
         await ctx.Response.WriteAsync("command is required");
@@ -356,41 +405,10 @@ app.MapPost("/api/terminal", async (HttpContext ctx) =>
 
     try
     {
-        bool onWindows = OperatingSystem.IsWindows();
-        var psi = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = onWindows ? "cmd.exe" : "/bin/sh",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        if (onWindows) { psi.ArgumentList.Add("/d"); psi.ArgumentList.Add("/c"); psi.ArgumentList.Add(req.Command); }
-        else { psi.ArgumentList.Add("-c"); psi.ArgumentList.Add(req.Command); }
-        if (!string.IsNullOrWhiteSpace(req.Cwd) && Directory.Exists(req.Cwd))
-            psi.WorkingDirectory = req.Cwd;
-
-        using var proc = new System.Diagnostics.Process { StartInfo = psi };
-        proc.Start();
-
-        // Serialize SSE writes so stdout and stderr pumps don't interleave frames.
-        var writeLock = new SemaphoreSlim(1, 1);
-        async Task Pump(TextReader reader, string stream)
-        {
-            string? line;
-            while ((line = await reader.ReadLineAsync(ctx.RequestAborted)) is not null)
-            {
-                await writeLock.WaitAsync(ctx.RequestAborted);
-                try { await WriteSse(ctx, "out", JsonSerializer.Serialize(new { stream, text = line }, jsonOpts)); }
-                finally { writeLock.Release(); }
-            }
-        }
-
-        await Task.WhenAll(Pump(proc.StandardOutput, "stdout"), Pump(proc.StandardError, "stderr"));
-        await proc.WaitForExitAsync(ctx.RequestAborted);
-        await WriteSse(ctx, "exit", JsonSerializer.Serialize(new { code = proc.ExitCode }, jsonOpts));
+        await foreach (var line in runner.RunAsync(command, cwd, ctx.RequestAborted))
+            await WriteSse(ctx, "line",
+                JsonSerializer.Serialize(new { kind = line.Kind, text = line.Text }, jsonOpts));
+        await WriteSse(ctx, "done", "{}");
     }
     catch (OperationCanceledException)
     {
@@ -398,8 +416,8 @@ app.MapPost("/api/terminal", async (HttpContext ctx) =>
     }
     catch (Exception ex)
     {
-        await WriteSse(ctx, "out", JsonSerializer.Serialize(new { stream = "stderr", text = ex.Message }, jsonOpts));
-        await WriteSse(ctx, "exit", JsonSerializer.Serialize(new { code = -1 }, jsonOpts));
+        await WriteSse(ctx, "line",
+            JsonSerializer.Serialize(new { kind = "stderr", text = ex.Message }, jsonOpts));
     }
 });
 
@@ -477,4 +495,3 @@ static void AppendAuthCookie(HttpContext ctx, string token) =>
 
 sealed record LoginBody(string? Password);
 sealed record RenameBody(string? Title);
-sealed record TerminalRequest(string? Cwd, string? Command);

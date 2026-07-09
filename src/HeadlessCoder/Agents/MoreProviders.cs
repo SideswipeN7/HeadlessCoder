@@ -113,6 +113,10 @@ public sealed class QwenProvider : GenericCliProvider
     protected override string InstallHint =>
         "Install with `npm install -g @qwen-code/qwen-code`, then run `qwen` once to authenticate.";
 
+    // Qwen Code inherits Gemini CLI's on-disk chat store: ~/.qwen/tmp/<project>/chats/*.jsonl
+    protected override ICliHistoryStore? HistoryStore { get; } = new GeminiFamilySessionStore(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".qwen", "tmp"));
+
     protected override IEnumerable<string> BuildArgs(SendMessageRequest r)
     {
         var a = new List<string> { "--prompt", r.Message };
