@@ -28,7 +28,17 @@ window.addEventListener("DOMContentLoaded", () => {
   $("sendBtn").addEventListener("click", send);
   $("input").addEventListener("keydown", onInputKey);
   $("input").addEventListener("input", autoGrow);
+  $("input").addEventListener("paste", onPaste);
   $("expandBtn").addEventListener("click", toggleExpand);
+  $("effortInfo").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const p = $("effortPop");
+    p.hidden = !p.hidden;
+  });
+  document.addEventListener("click", (e) => {
+    const p = $("effortPop");
+    if (p && !p.hidden && !e.target.closest(".ctrl-effort")) p.hidden = true;
+  });
   $("terminalBtn").addEventListener("click", toggleTerminal);
   $("terminalForm").addEventListener("submit", runTerminalCommand);
   $("terminalMinBtn").addEventListener("click", (e) => { e.stopPropagation(); minimizeTerminal(); });
@@ -702,6 +712,7 @@ function showToast(msg) {
 async function loadTranscript(sess) {
   const t = $("transcript");
   resetContextMeter();
+  resetTerminalForSession();
   t.innerHTML = `<div class="empty muted">Loading transcript…</div>`;
   try {
     const supportsHistory = (agentById(sess.provider) || {}).supportsHistory !== false;
@@ -764,12 +775,13 @@ function toggleExpand() {
   $("input").focus();
 }
 
-// ---- Terminal (only available when server started with --commands-allowed) --
+// ---- Terminal (per session; only when server started with --commands-allowed) --
 function toggleTerminal() {
   const w = $("terminalWindow");
   if (w.hidden) {
     w.hidden = false;
     w.classList.remove("minimized");
+    updateTerminalCwd();
     $("terminalInput").focus();
   } else {
     w.hidden = true;
@@ -782,6 +794,16 @@ function restoreTerminal() {
     w.classList.remove("minimized");
     $("terminalInput").focus();
   }
+}
+function updateTerminalCwd() {
+  const el = $("terminalCwd");
+  if (el) el.textContent = (state.current && state.current.cwd) || "";
+}
+// The terminal is scoped to the current session: reset it when the session changes.
+function resetTerminalForSession() {
+  const out = $("terminalOutput");
+  if (out) out.innerHTML = "";
+  updateTerminalCwd();
 }
 function termAppend(text, cls) {
   const out = $("terminalOutput");
@@ -842,40 +864,140 @@ function handleTermSse(frame) {
   else termAppend(obj.text, obj.kind === "stderr" ? "t-err" : null);
 }
 
-async function send() {
-  if (state.sending || !state.current) return;
+// Sending never blocks the composer: each submit is queued and the queue is
+// drained sequentially against the SAME session, so several inputs typed while
+// a reply streams all land in one conversation.
+function send() {
+  if (!state.current) return;
   const input = $("input");
   const text = input.value.trim();
-  if (!text) return;
+  const images = (state.pendingImages || []).slice();
+  if (!text && !images.length) return;
 
   input.value = "";
   autoGrow();
-  addUserBubble(text);
+  addUserBubble(text, images);
+  state.pendingImages = [];
+  renderAttachments();
   scrollBottom();
 
-  state.sending = true;
-  setSending(true);
-
-  const body = {
-    provider: state.current.provider || "claude",
-    sessionId: state.current.id || null,
-    cwd: state.current.cwd,
-    message: text,
+  state.queue = state.queue || [];
+  state.queue.push({
+    text,
+    images,
     permissionMode: $("permMode").value,
     model: $("model").value || null,
     effort: $("effort").value || null,
-  };
+  });
+  updateQueueIndicator();
+  processQueue();
+}
 
-  try {
-    await streamMessage(body);
-  } catch (e) {
-    addErrorLine(String(e && e.message ? e.message : e));
-  } finally {
-    state.sending = false;
-    setSending(false);
+async function processQueue() {
+  if (state.sending) return;              // a drain loop is already running
+  state.sending = true;
+  setSending(true);
+  while (state.queue && state.queue.length) {
+    const item = state.queue.shift();
+    updateQueueIndicator();
+    const paths = (item.images || []).map((im) => im.path).filter(Boolean);
+    let message = item.text;
+    if (paths.length)
+      message += (message ? "\n\n" : "") + "Attached image(s):\n" + paths.join("\n");
+
+    const body = {
+      provider: state.current.provider || "claude",
+      sessionId: state.current.id || null,   // resumes once the first turn assigns an id
+      cwd: state.current.cwd,
+      message,
+      permissionMode: item.permissionMode,
+      model: item.model,
+      effort: item.effort,
+    };
+    try {
+      await streamMessage(body);
+    } catch (e) {
+      addErrorLine(String(e && e.message ? e.message : e));
+    }
     endLive();
-    loadSessions();
   }
+  state.sending = false;
+  setSending(false);
+  updateQueueIndicator();
+  loadSessions();
+}
+
+function updateQueueIndicator() {
+  const n = state.queue ? state.queue.length : 0;
+  const el = $("queueChip");
+  if (!el) return;
+  if (n > 0) { el.textContent = `${n} queued`; el.hidden = false; }
+  else el.hidden = true;
+}
+
+// ---- Image attachments (paste to attach) -----------------------------------
+async function onPaste(e) {
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  const files = [];
+  for (const it of items) {
+    if (it.kind === "file" && it.type.startsWith("image/")) {
+      const f = it.getAsFile();
+      if (f) files.push(f);
+    }
+  }
+  if (!files.length) return;          // no image → let the normal text paste happen
+  e.preventDefault();
+  for (const f of files) await attachImage(f);
+}
+
+async function attachImage(file) {
+  state.pendingImages = state.pendingImages || [];
+  try {
+    const dataUrl = await readAsDataUrl(file);
+    const base64 = String(dataUrl).split(",")[1] || "";
+    const resp = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: file.name || "paste.png", dataBase64: base64 }),
+    });
+    if (!resp.ok) { showToast("Image upload failed"); return; }
+    const { path } = await resp.json();
+    state.pendingImages.push({ path, dataUrl });
+    renderAttachments();
+  } catch { showToast("Image upload failed"); }
+}
+
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function renderAttachments() {
+  const wrap = $("attachments");
+  if (!wrap) return;
+  const imgs = state.pendingImages || [];
+  wrap.innerHTML = "";
+  if (!imgs.length) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  imgs.forEach((im, i) => {
+    const chip = document.createElement("div");
+    chip.className = "attach-chip";
+    const img = document.createElement("img");
+    img.src = im.dataUrl || im.path;
+    chip.appendChild(img);
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.className = "attach-remove";
+    rm.textContent = "✕";
+    rm.title = "Remove";
+    rm.addEventListener("click", () => { state.pendingImages.splice(i, 1); renderAttachments(); });
+    chip.appendChild(rm);
+    wrap.appendChild(chip);
+  });
 }
 
 async function streamMessage(body) {
@@ -961,13 +1083,26 @@ function dispatchAgentEvent(ev) {
 }
 
 // ---- Bubble builders -------------------------------------------------------
-function addUserBubble(text) {
+function addUserBubble(text, images) {
   const d = document.createElement("div");
   d.className = "msg msg-user";
-  const body = document.createElement("div");
-  body.className = "md";
-  body.innerHTML = renderMarkdown(text);   // format the user's text (e.g. "* " → bullet list)
-  d.appendChild(body);
+  if (images && images.length) {
+    const gal = document.createElement("div");
+    gal.className = "msg-images";
+    for (const im of images) {
+      const img = document.createElement("img");
+      img.className = "msg-image";
+      img.src = im.dataUrl || im.path;
+      gal.appendChild(img);
+    }
+    d.appendChild(gal);
+  }
+  if (text) {
+    const body = document.createElement("div");
+    body.className = "md";
+    body.innerHTML = renderMarkdown(text);   // format the user's text (e.g. "* " → bullet list)
+    d.appendChild(body);
+  }
   $("transcript").appendChild(d);
 }
 function addAssistantBubble(text) {
@@ -1186,8 +1321,9 @@ function markActive() {
       el.dataset.id === state.current.id && el.dataset.provider === state.current.provider);
 }
 function setSending(on) {
-  $("sendBtn").disabled = on;
-  $("sendBtn").textContent = on ? "…" : "Send";
+  // Keep the button enabled so more inputs can be queued while a reply streams.
+  $("sendBtn").textContent = on ? "Send ⏳" : "Send";
+  $("composer").classList.toggle("streaming", on);
 }
 function scrollBottom() {
   const t = $("transcript");

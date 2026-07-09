@@ -297,6 +297,41 @@ app.MapPost("/api/message", async (HttpContext ctx, AgentRegistry reg) =>
     }
 });
 
+// Save a pasted/uploaded image to a temp file and return its absolute path so the
+// message can reference it and the agent can read it from disk.
+app.MapPost("/api/upload", async (HttpContext ctx) =>
+{
+    string name, dataBase64;
+    using (var doc = await JsonDocument.ParseAsync(ctx.Request.Body, cancellationToken: ctx.RequestAborted))
+    {
+        name = doc.RootElement.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+        dataBase64 = doc.RootElement.TryGetProperty("dataBase64", out var d) ? d.GetString() ?? "" : "";
+    }
+    if (string.IsNullOrEmpty(dataBase64))
+    {
+        ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await ctx.Response.WriteAsync("dataBase64 is required");
+        return;
+    }
+    byte[] bytes;
+    try { bytes = Convert.FromBase64String(dataBase64); }
+    catch { ctx.Response.StatusCode = StatusCodes.Status400BadRequest; await ctx.Response.WriteAsync("invalid base64"); return; }
+    if (bytes.Length > 25 * 1024 * 1024)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+        await ctx.Response.WriteAsync("image too large (max 25 MB)");
+        return;
+    }
+
+    string ext = Path.GetExtension(name);
+    if (string.IsNullOrWhiteSpace(ext) || ext.Length > 6) ext = ".png";
+    string dir = Path.Combine(Path.GetTempPath(), "headlesscoder-uploads");
+    Directory.CreateDirectory(dir);
+    string path = Path.Combine(dir, Guid.NewGuid().ToString("N") + ext);
+    await File.WriteAllBytesAsync(path, bytes, ctx.RequestAborted);
+    await ctx.Response.WriteAsJsonAsync(new { path }, jsonOpts);
+});
+
 // In-browser terminal — only mounted when the server is started with --commands-allowed.
 // Streams a single shell command's stdout/stderr line-by-line over SSE.
 app.MapPost("/api/terminal", async (HttpContext ctx, CommandRunner runner) =>

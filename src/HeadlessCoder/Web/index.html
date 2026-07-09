@@ -104,7 +104,7 @@
               <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
             </select>
           </label>
-          <label class="ctrl">
+          <label class="ctrl ctrl-effort">
             <span class="ctrl-label">Effort</span>
             <select id="effort">
               <option value="">Default</option>
@@ -114,17 +114,52 @@
               <option value="xhigh">xHigh</option>
               <option value="max">Max</option>
             </select>
+            <button type="button" class="ctrl-info" id="effortInfo" aria-label="Effort details" title="What do effort levels mean?">ⓘ</button>
+            <div class="info-pop" id="effortPop" hidden>
+              <strong>Reasoning effort</strong> — how much the model deliberates:
+              <ul>
+                <li><b>Default</b> — the model/CLI's own default.</li>
+                <li><b>Low</b> — fastest, least deliberation; good for simple edits.</li>
+                <li><b>Medium</b> — balanced speed vs. thoroughness.</li>
+                <li><b>High</b> — more careful reasoning; slower, costs more.</li>
+                <li><b>xHigh</b> — extended reasoning for hard problems.</li>
+                <li><b>Max</b> — maximum deliberation; slowest and most expensive.</li>
+              </ul>
+            </div>
           </label>
+          <span class="queue-chip" id="queueChip" hidden title="Messages waiting to be sent"></span>
           <span class="ctx-chip" id="ctxChip" hidden title="Context window used (last turn)">
             <span class="ctx-bar"><span class="ctx-fill" id="ctxFill"></span></span>
             <span class="ctx-text" id="ctxText"></span>
           </span>
           <span class="cwd-chip muted" id="cwdChip"></span>
         </div>
+        <div class="attachments" id="attachments" hidden></div>
         <div class="composer-row">
-          <textarea id="input" rows="1" placeholder="Message Claude Code…"></textarea>
+          <textarea id="input" rows="1" placeholder="Message Claude Code…  (paste an image to attach)"></textarea>
           <button type="button" class="icon-btn expand-btn" id="expandBtn" aria-label="Expand input" title="Expand input (5 lines)">⤢</button>
           <button class="btn btn-primary send" id="sendBtn" aria-label="Send">Send</button>
+        </div>
+      </div>
+
+      <!-- In-browser terminal — docked under the composer; only used with --commands-allowed -->
+      <div id="terminalWindow" class="terminal-window" hidden>
+        <div class="terminal-head" id="terminalHead">
+          <span class="terminal-title">&gt;_ Terminal</span>
+          <span class="terminal-cwd muted" id="terminalCwd"></span>
+          <div class="terminal-head-actions">
+            <button type="button" class="terminal-hbtn" id="terminalClearBtn" title="Clear">🗑</button>
+            <button type="button" class="terminal-hbtn" id="terminalMinBtn" title="Minimize under input">▁</button>
+            <button type="button" class="terminal-hbtn" id="terminalCloseBtn" title="Close">✕</button>
+          </div>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-output" id="terminalOutput"></div>
+          <form class="terminal-input-row" id="terminalForm">
+            <span class="terminal-prompt">$</span>
+            <input type="text" id="terminalInput" autocomplete="off" autocapitalize="off"
+                   spellcheck="false" placeholder="Type a command and press Enter…" />
+          </form>
         </div>
       </div>
     </main>
@@ -275,26 +310,6 @@
       </div>
     </form>
   </dialog>
-
-  <!-- In-browser terminal (only shown when server started with --commands-allowed) -->
-  <div id="terminalWindow" class="terminal-window" hidden>
-    <div class="terminal-head" id="terminalHead">
-      <span class="terminal-title">&gt;_ Terminal</span>
-      <div class="terminal-head-actions">
-        <button type="button" class="terminal-hbtn" id="terminalClearBtn" title="Clear">🗑</button>
-        <button type="button" class="terminal-hbtn" id="terminalMinBtn" title="Minimize">▁</button>
-        <button type="button" class="terminal-hbtn" id="terminalCloseBtn" title="Close">✕</button>
-      </div>
-    </div>
-    <div class="terminal-body">
-      <div class="terminal-output" id="terminalOutput"></div>
-      <form class="terminal-input-row" id="terminalForm">
-        <span class="terminal-prompt">$</span>
-        <input type="text" id="terminalInput" autocomplete="off" autocapitalize="off"
-               spellcheck="false" placeholder="Type a command and press Enter…" />
-      </form>
-    </div>
-  </div>
 
   <div id="minimizedBar" class="minimized-bar" hidden></div>
   <div id="toast" class="toast" hidden></div>
