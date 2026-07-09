@@ -1,5 +1,6 @@
 using System.Text;
 using HeadlessCoder.Agents;
+using HeadlessCoder.Hosting;
 using QRCoder;
 
 namespace HeadlessCoder;
@@ -28,6 +29,20 @@ public static class ConsoleUi
         Console.WriteLine();
         Console.WriteLine($"{Coral}{Bold}  ✳  HeadlessCoder{Reset}{Muted}  ·  manage your coding agents from anywhere on your LAN{Reset}");
         Console.WriteLine();
+    }
+
+    /// <summary>
+    /// Prints the embedded ASCII-art logo (ascii-art.txt). Called at startup unless
+    /// the app was launched with --no-logo. Silently no-ops if the art is unavailable.
+    /// </summary>
+    public static void PrintLogo()
+    {
+        var asset = EmbeddedAssets.TryGet("ascii-art.txt");
+        if (asset is null)
+            return;
+        string art = Encoding.UTF8.GetString(asset.Value.Bytes);
+        Console.WriteLine();
+        Console.WriteLine($"{Coral}{art}{Reset}");
     }
 
     public static void PrintPortInUse(int port)

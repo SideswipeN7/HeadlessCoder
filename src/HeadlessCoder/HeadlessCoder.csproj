@@ -7,7 +7,7 @@
     <RootNamespace>HeadlessCoder</RootNamespace>
     <AssemblyName>headlesscoder</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.0.2</Version>
+    <Version>0.1.0</Version>
 
     <!-- Single-file friendly defaults. Publish with:
          dotnet publish -c Release -r win-x64  (or osx-arm64 / linux-x64 ...) -->
@@ -25,6 +25,11 @@
   <!-- Web UI is embedded so the whole app ships as one self-contained binary. -->
   <ItemGroup>
     <EmbeddedResource Include="Web\**\*" />
+  </ItemGroup>
+
+  <!-- Startup ASCII-art logo (lives at the repo root), embedded for the single-file build. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\ascii-art.txt" Link="ascii-art.txt" />
   </ItemGroup>
 
 </Project>

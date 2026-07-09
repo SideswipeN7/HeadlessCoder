@@ -29,6 +29,15 @@ public sealed class CommandLineOptions
     /// <summary>When true, do not read past sessions/transcripts from disk.</summary>
     public bool NoHistory { get; init; }
 
+    /// <summary>When true, expose an in-browser terminal that runs shell commands in the session's folder.</summary>
+    public bool CommandsAllowed { get; init; }
+
+    /// <summary>When true, suppress the ASCII-art logo printed at startup.</summary>
+    public bool NoLogo { get; init; }
+
+    /// <summary>When true, enable framework logging output (otherwise logging is suppressed).</summary>
+    public bool Logs { get; init; }
+
     public bool ShowHelp { get; init; }
 
     public static CommandLineOptions Parse(string[] args)
@@ -39,6 +48,9 @@ public sealed class CommandLineOptions
         bool noPass = false;
         bool freeStyle = false;
         bool noHistory = false;
+        bool commandsAllowed = false;
+        bool noLogo = false;
+        bool logs = false;
         string bind = "0.0.0.0";
         string? advertise = null;
         string? password = null;
@@ -63,11 +75,24 @@ public sealed class CommandLineOptions
                 case "--no-history":
                     noHistory = true;
                     break;
+                case "-ca":
+                case "--commands-allowed":
+                    commandsAllowed = true;
+                    break;
+                case "-nl":
+                case "--no-logo":
+                    noLogo = true;
+                    break;
+                case "-l":
+                case "--logs":
+                    logs = true;
+                    break;
                 case "-h":
                 case "-?":
                 case "--help":
                     help = true;
                     break;
+                case "-p":
                 case "--port":
                     if (i + 1 < args.Length && int.TryParse(args[++i], out int p))
                         port = p;
@@ -85,10 +110,13 @@ public sealed class CommandLineOptions
                         password = args[++i];
                     break;
                 default:
-                    // Allow "--port=8080" / "--pass=secret" style too.
+                    // Allow "--port=8080" / "-p=8080" / "--pass=secret" style too.
                     if (a.StartsWith("--port=", StringComparison.OrdinalIgnoreCase) &&
                         int.TryParse(a.AsSpan("--port=".Length), out int p2))
                         port = p2;
+                    else if (a.StartsWith("-p=", StringComparison.OrdinalIgnoreCase) &&
+                        int.TryParse(a.AsSpan("-p=".Length), out int p3))
+                        port = p3;
                     else if (a.StartsWith("--host=", StringComparison.OrdinalIgnoreCase))
                         advertise = a["--host=".Length..];
                     else if (a.StartsWith("--pass=", StringComparison.OrdinalIgnoreCase))
@@ -110,6 +138,9 @@ public sealed class CommandLineOptions
             Password = password,
             FreeStyle = freeStyle,
             NoHistory = noHistory,
+            CommandsAllowed = commandsAllowed,
+            NoLogo = noLogo,
+            Logs = logs,
         };
     }
 
@@ -127,7 +158,12 @@ public sealed class CommandLineOptions
               --pass <value>  Protect access with your own password.
           -fs, --free-style   Allow new sessions in ANY folder (not just existing projects).
               --no-history    Do not read past sessions/transcripts from disk.
-              --port <n>      Port to serve the web UI on (default: 8787).
+          -ca, --commands-allowed
+                              Enable the in-browser terminal (runs shell commands in the
+                              session's working directory). Off by default.
+          -nl, --no-logo      Don't print the ASCII-art logo at startup.
+          -l,  --logs         Enable framework logging output (suppressed by default).
+          -p,  --port <n>     Port to serve the web UI on (default: 8787).
               --bind <addr>   Address Kestrel binds to (default: 0.0.0.0 = all interfaces).
               --host <ip>     LAN IP to advertise in the printed URL/QR (auto-detected otherwise).
           -h,  --help         Show this help.

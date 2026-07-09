@@ -12,7 +12,8 @@ const state = {
   collapsed: new Set(), // collapsed group keys
   config: {},          // { auth, freeStyle, noHistory } from /api/health
   privateIds: new Set(), // in-private session ids (kept out of the list)
-  minimized: []        // minimized in-private sessions
+  minimized: [],       // minimized in-private sessions
+  termRunning: false   // a terminal command is streaming
 };
 
 const $ = (id) => document.getElementById(id);
@@ -37,6 +38,10 @@ window.addEventListener("DOMContentLoaded", () => {
   $("gearBtn").addEventListener("click", () => openSettings());
   $("shareBtn").addEventListener("click", shareCurrent);
   $("minimizeBtn").addEventListener("click", minimizeCurrent);
+  $("terminalBtn").addEventListener("click", openTerminal);
+  $("terminalClose").addEventListener("click", () => $("terminalDialog").close());
+  $("terminalForm").addEventListener("submit", runTerminalCommand);
+  $("shrinkInput").addEventListener("click", shrinkInputBox);
   $("renameBtn").addEventListener("click", openRename);
   $("renameForm").addEventListener("submit", onRenameSubmit);
   $("chatTitle").addEventListener("dblclick", openRename);
@@ -63,6 +68,9 @@ window.addEventListener("DOMContentLoaded", () => {
 async function loadConfig() {
   try { state.config = await (await fetch("/api/health")).json(); }
   catch { state.config = {}; }
+  // Config may resolve after a deep link already opened a session; refresh the
+  // topbar so the terminal button appears once we know --commands-allowed.
+  updateSessionButtons();
 }
 
 // ---- Settings tabs ---------------------------------------------------------
@@ -92,9 +100,42 @@ function openSettings(tab) {
   populateCustomFields();
   renderAgentsList();
   renderAccessInfo();
+  renderConfig();
   renderAbout();
   if (tab) switchTab(tab); else switchTab("appearance");
   $("settingsDialog").showModal();
+}
+
+// ---- Config panel (effective runtime config + access QR) -------------------
+async function renderConfig() {
+  const list = $("configList");
+  // Point the QR image at the server; add a cache-buster so re-opening refetches.
+  $("configQr").src = "/api/qr?t=" + Date.now();
+  try {
+    const c = await (await fetch("/api/config")).json();
+    const rows = [
+      ["URL", c.url],
+      ["Port", c.port],
+      ["Bind", c.bind],
+      ["Advertised host", c.host],
+      ["Access", c.auth ? "🔒 password" : "🔓 open (--no-pass)"],
+      ["Keep-awake", c.noSleep ? "on (--no-sleep)" : "off"],
+      ["New sessions", c.freeStyle ? "any folder (--free-style)" : "existing projects only"],
+      ["History", c.noHistory ? "off (--no-history)" : "on"],
+      ["Terminal", c.commandsAllowed ? "enabled (--commands-allowed)" : "disabled"],
+    ];
+    list.innerHTML = "";
+    for (const [k, v] of rows) {
+      const row = document.createElement("div");
+      row.className = "config-row";
+      row.innerHTML = `<span class="config-key"></span><span class="config-val"></span>`;
+      row.querySelector(".config-key").textContent = k;
+      row.querySelector(".config-val").textContent = v;
+      list.appendChild(row);
+    }
+  } catch {
+    list.innerHTML = `<div class="muted small">Failed to load config.</div>`;
+  }
 }
 
 // ---- About / updates -------------------------------------------------------
@@ -538,12 +579,14 @@ async function openSession(sess) {
 // Topbar button visibility:
 //   rename / share -> the selected (open) session, once it has an id
 //   minimize       -> in-private sessions only
+//   terminal       -> only when started with --commands-allowed and a session is open
 function updateSessionButtons() {
   const s = state.current;
   const hasId = !!(s && s.id);
   $("renameBtn").hidden = !hasId;
   $("shareBtn").hidden = !hasId;
   $("minimizeBtn").hidden = !(s && s.private);
+  $("terminalBtn").hidden = !(s && state.config.commandsAllowed);
   $("privateBadge").hidden = !(s && s.private);
 }
 
@@ -722,6 +765,89 @@ function renderTranscriptMessage(m) {
   if (m.role === "tool") return addToolChip(m.toolName || "tool", m.text);
 }
 
+// ---- Terminal --------------------------------------------------------------
+// Available only when the host was started with --commands-allowed. Runs the
+// command in the current session's working directory and streams stdout/stderr.
+function openTerminal() {
+  const s = state.current;
+  if (!s || !state.config.commandsAllowed) return;
+  $("termCwd").textContent = s.cwd ? "cwd: " + s.cwd : "";
+  $("terminalDialog").showModal();
+  setTimeout(() => $("termInput").focus(), 50);
+}
+
+async function runTerminalCommand(e) {
+  e.preventDefault();
+  if (state.termRunning) return;
+  const s = state.current;
+  const input = $("termInput");
+  const cmd = input.value.trim();
+  if (!cmd || !s) return;
+  input.value = "";
+  termEcho("$ " + cmd, "cmd");
+  state.termRunning = true;
+  $("termRun").disabled = true;
+
+  try {
+    const resp = await fetch("/api/terminal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cwd: s.cwd, command: cmd }),
+    });
+    if (!resp.ok || !resp.body) {
+      let msg = `HTTP ${resp.status}`;
+      try { const j = await resp.json(); if (j.error) msg = j.error; } catch { /* ignore */ }
+      termEcho(msg, "stderr");
+    } else {
+      await readTerminalStream(resp);
+    }
+  } catch (err) {
+    termEcho(String(err && err.message ? err.message : err), "stderr");
+  } finally {
+    state.termRunning = false;
+    $("termRun").disabled = false;
+    $("termInput").focus();
+  }
+}
+
+async function readTerminalStream(resp) {
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      handleTermSse(buf.slice(0, idx));
+      buf = buf.slice(idx + 2);
+    }
+  }
+}
+
+function handleTermSse(frame) {
+  let event = "out";
+  const dataLines = [];
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+  }
+  let data;
+  try { data = JSON.parse(dataLines.join("\n")); } catch { return; }
+  if (event === "out") termEcho(data.text || "", data.stream || "stdout");
+  else if (event === "exit") termEcho(`— exit ${data.code} —`, "exit");
+}
+
+function termEcho(text, kind) {
+  const out = $("termOut");
+  const line = document.createElement("div");
+  line.className = "term-line term-" + (kind || "stdout");
+  line.textContent = text;
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+}
+
 // ---- Composing / sending ---------------------------------------------------
 function onInputKey(e) {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); return; }
@@ -737,7 +863,19 @@ function cyclePermMode() {
 function autoGrow() {
   const el = $("input");
   el.style.height = "auto";
-  el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  const h = Math.min(el.scrollHeight, 200);
+  el.style.height = h + "px";
+  // Offer to shrink once the box has grown past a single row (min-height is 44px).
+  $("shrinkInput").hidden = h <= 48;
+}
+
+// Collapse the composer back to one line (content is kept, just scrolled).
+function shrinkInputBox() {
+  const el = $("input");
+  el.style.height = "auto";     // min-height (44px) takes over -> single line
+  el.scrollTop = 0;
+  $("shrinkInput").hidden = true;
+  el.focus();
 }
 
 async function send() {

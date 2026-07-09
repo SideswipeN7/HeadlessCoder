@@ -11,6 +11,7 @@ using HeadlessCoder.Hosting;
 using HeadlessCoder.Networking;
 using HeadlessCoder.Platform;
 using Microsoft.AspNetCore.Http.Features;
+using QRCoder;
 
 var options = CommandLineOptions.Parse(args);
 if (options.ShowHelp)
@@ -19,6 +20,8 @@ if (options.ShowHelp)
     return;
 }
 
+if (!options.NoLogo)
+    ConsoleUi.PrintLogo();
 ConsoleUi.PrintBanner();
 
 // Fail fast (with a friendly message) if the port is already taken.
@@ -36,8 +39,16 @@ string password = authEnabled
     : "";
 string authToken = authEnabled ? Guid.NewGuid().ToString("N") : "";
 
+// LAN URL + QR content are needed both by the startup banner and the /api/qr + /api/config
+// endpoints, so resolve them once up front. The QR embeds the access key so a scan signs in.
+string host = options.AdvertiseHost ?? NetworkHelper.GetLanIpv4();
+string url = $"http://{host}:{options.Port}";
+string qrContent = authEnabled ? $"{url}/?key={Uri.EscapeDataString(password)}" : url;
+
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args });
-builder.Logging.ClearProviders();
+// Logging is suppressed by default so the console stays clean; --logs re-enables it.
+if (!options.Logs)
+    builder.Logging.ClearProviders();
 builder.WebHost.UseUrls($"http://{options.BindAddress}:{options.Port}");
 
 // Agent providers + registry.
@@ -63,7 +74,7 @@ var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 // About / update-check.
 const string ghRepo = "SideswipeN7/HeadlessCoder";
 string appVersion = Assembly.GetExecutingAssembly().GetName().Version is { } ver
-    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.0.2";
+    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.1.0";
 var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
 // ---- Access control ----------------------------------------------------------
@@ -137,7 +148,31 @@ app.MapGet("/api/health", (AgentRegistry reg) => Results.Json(new
     auth = authEnabled,
     freeStyle = options.FreeStyle,
     noHistory = options.NoHistory,
+    commandsAllowed = options.CommandsAllowed,
 }, jsonOpts));
+
+// The effective runtime configuration, for the Settings → Config panel.
+app.MapGet("/api/config", () => Results.Json(new
+{
+    url,
+    port = options.Port,
+    bind = options.BindAddress,
+    host,
+    auth = authEnabled,
+    noSleep = options.NoSleep,
+    freeStyle = options.FreeStyle,
+    noHistory = options.NoHistory,
+    commandsAllowed = options.CommandsAllowed,
+}, jsonOpts));
+
+// The access QR as a PNG (same content as the console QR: URL + embedded key).
+app.MapGet("/api/qr", () =>
+{
+    using var gen = new QRCodeGenerator();
+    using var data = gen.CreateQrCode(qrContent, QRCodeGenerator.ECCLevel.M);
+    byte[] png = new PngByteQRCode(data).GetGraphic(10);
+    return Results.Bytes(png, "image/png");
+});
 
 // About: version + repo.
 app.MapGet("/api/about", () => Results.Json(new
@@ -294,15 +329,84 @@ app.MapPost("/api/message", async (HttpContext ctx, AgentRegistry reg) =>
     }
 });
 
+// Run a shell command in a session's folder and stream its output as SSE.
+// Gated behind --commands-allowed; uses cmd on Windows and /bin/sh elsewhere.
+app.MapPost("/api/terminal", async (HttpContext ctx) =>
+{
+    if (!options.CommandsAllowed)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await ctx.Response.WriteAsJsonAsync(new { error = "terminal disabled (start with --commands-allowed)" });
+        return;
+    }
+
+    var req = await JsonSerializer.DeserializeAsync<TerminalRequest>(
+        ctx.Request.Body, jsonOpts, ctx.RequestAborted);
+    if (req is null || string.IsNullOrWhiteSpace(req.Command))
+    {
+        ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await ctx.Response.WriteAsync("command is required");
+        return;
+    }
+
+    ctx.Response.Headers.CacheControl = "no-cache";
+    ctx.Response.Headers.Connection = "keep-alive";
+    ctx.Response.ContentType = "text/event-stream";
+    ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+    try
+    {
+        bool onWindows = OperatingSystem.IsWindows();
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = onWindows ? "cmd.exe" : "/bin/sh",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        if (onWindows) { psi.ArgumentList.Add("/d"); psi.ArgumentList.Add("/c"); psi.ArgumentList.Add(req.Command); }
+        else { psi.ArgumentList.Add("-c"); psi.ArgumentList.Add(req.Command); }
+        if (!string.IsNullOrWhiteSpace(req.Cwd) && Directory.Exists(req.Cwd))
+            psi.WorkingDirectory = req.Cwd;
+
+        using var proc = new System.Diagnostics.Process { StartInfo = psi };
+        proc.Start();
+
+        // Serialize SSE writes so stdout and stderr pumps don't interleave frames.
+        var writeLock = new SemaphoreSlim(1, 1);
+        async Task Pump(TextReader reader, string stream)
+        {
+            string? line;
+            while ((line = await reader.ReadLineAsync(ctx.RequestAborted)) is not null)
+            {
+                await writeLock.WaitAsync(ctx.RequestAborted);
+                try { await WriteSse(ctx, "out", JsonSerializer.Serialize(new { stream, text = line }, jsonOpts)); }
+                finally { writeLock.Release(); }
+            }
+        }
+
+        await Task.WhenAll(Pump(proc.StandardOutput, "stdout"), Pump(proc.StandardError, "stderr"));
+        await proc.WaitForExitAsync(ctx.RequestAborted);
+        await WriteSse(ctx, "exit", JsonSerializer.Serialize(new { code = proc.ExitCode }, jsonOpts));
+    }
+    catch (OperationCanceledException)
+    {
+        // client disconnected
+    }
+    catch (Exception ex)
+    {
+        await WriteSse(ctx, "out", JsonSerializer.Serialize(new { stream = "stderr", text = ex.Message }, jsonOpts));
+        await WriteSse(ctx, "exit", JsonSerializer.Serialize(new { code = -1 }, jsonOpts));
+    }
+});
+
 // ---- Startup: doctor, URL, QR, keep-awake ------------------------------------
 
 var registry = app.Services.GetRequiredService<AgentRegistry>();
 DoctorReport doctor = registry.Diagnose();
-
-string host = options.AdvertiseHost ?? NetworkHelper.GetLanIpv4();
-string url = $"http://{host}:{options.Port}";
-// The QR embeds the access key so scanning signs you in automatically.
-string qrContent = authEnabled ? $"{url}/?key={Uri.EscapeDataString(password)}" : url;
 
 SleepPreventer? sleep = options.NoSleep ? SleepPreventer.Start() : null;
 app.Lifetime.ApplicationStopping.Register(() => sleep?.Dispose());
@@ -373,3 +477,4 @@ static void AppendAuthCookie(HttpContext ctx, string token) =>
 
 sealed record LoginBody(string? Password);
 sealed record RenameBody(string? Title);
+sealed record TerminalRequest(string? Cwd, string? Command);

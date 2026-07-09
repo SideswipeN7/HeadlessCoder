@@ -730,4 +730,60 @@ body {
   .chat-title { font-size: 18px; }
   .cwd-chip { max-width: 100%; margin-left: 0; }
   .custom-grid { grid-template-columns: 1fr; }
+  .terminal-modal { width: min(560px, 96vw); }
+  .term-out { height: 42vh; }
 }
+
+/* ---- Terminal button + composer shrink ---------------------------------- */
+.mono-btn { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+
+.input-wrap { position: relative; flex: 1; display: flex; }
+.input-wrap #input { flex: 1; }
+.shrink-btn {
+  position: absolute; top: 6px; right: 8px;
+  width: 24px; height: 24px; border-radius: 6px;
+  border: 1px solid var(--hairline); background: var(--canvas); color: var(--muted);
+  cursor: pointer; font-size: 13px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.shrink-btn:hover { background: var(--surface-card); color: var(--ink); }
+.shrink-btn[hidden] { display: none; }
+
+/* ---- Settings: Config panel --------------------------------------------- */
+.config-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 18px; }
+.config-row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 8px 12px; border: 1px solid var(--hairline); border-radius: var(--r-md);
+  background: var(--surface-soft);
+}
+.config-key { flex: none; width: 130px; font-size: 12.5px; color: var(--muted); }
+.config-val { flex: 1; font-family: var(--mono); font-size: 12.5px; color: var(--ink); word-break: break-all; }
+.config-qr .field-head { display: block; font-size: 13px; color: var(--ink); margin-bottom: 4px; }
+.config-qr-img {
+  width: 200px; height: 200px; margin-top: 10px;
+  border: 1px solid var(--hairline); border-radius: var(--r-md);
+  background: #fff; padding: 8px; image-rendering: pixelated;
+}
+
+/* ---- Terminal modal ----------------------------------------------------- */
+.terminal-modal { width: min(680px, 94vw); }
+.term-cwd { font-family: var(--mono); margin: -6px 0 10px; word-break: break-all; }
+.term-out {
+  height: 340px; overflow: auto; margin: 0 0 12px;
+  background: var(--surface-dark); color: var(--on-dark);
+  border-radius: var(--r-md); padding: 12px 14px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+}
+.term-line { white-space: pre-wrap; }
+.term-cmd { color: var(--primary); font-weight: 600; }
+.term-stderr { color: var(--error); }
+.term-exit { color: var(--muted); font-style: italic; margin: 4px 0 8px; }
+.term-form { display: flex; align-items: center; gap: 8px; }
+.term-prompt { font-family: var(--mono); color: var(--muted); flex: none; }
+.term-input {
+  flex: 1; font-family: var(--mono); font-size: 14px;
+  color: var(--ink); background: var(--canvas);
+  border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 9px 12px;
+}
+.term-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }

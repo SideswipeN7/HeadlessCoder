@@ -69,6 +69,7 @@
           <button class="icon-btn" id="renameBtn" aria-label="Rename session" title="Rename session" hidden>✎</button>
           <button class="icon-btn" id="shareBtn" aria-label="Copy share link" title="Copy share link" hidden>🔗</button>
           <button class="icon-btn" id="minimizeBtn" aria-label="Minimize" title="Minimize" hidden>▁</button>
+          <button class="icon-btn mono-btn" id="terminalBtn" aria-label="Terminal" title="Terminal" hidden>&gt;_</button>
           <button class="icon-btn" id="refreshBtn" aria-label="Refresh" title="Refresh">⟳</button>
           <button class="icon-btn" id="gearBtn" aria-label="Settings" title="Settings">⚙️</button>
         </div>
@@ -117,7 +118,10 @@
           <span class="cwd-chip muted" id="cwdChip"></span>
         </div>
         <div class="composer-row">
-          <textarea id="input" rows="1" placeholder="Message Claude Code…"></textarea>
+          <div class="input-wrap">
+            <textarea id="input" rows="1" placeholder="Message Claude Code…"></textarea>
+            <button class="shrink-btn" id="shrinkInput" type="button" aria-label="Shrink to one line" title="Shrink to one line" hidden>⌄</button>
+          </div>
           <button class="btn btn-primary send" id="sendBtn" aria-label="Send">Send</button>
         </div>
       </div>
@@ -161,6 +165,7 @@
       <div class="tabs" id="settingsTabs">
         <button type="button" class="tab active" data-tab="appearance">Appearance</button>
         <button type="button" class="tab" data-tab="agents">Agents</button>
+        <button type="button" class="tab" data-tab="config">Config</button>
         <button type="button" class="tab" data-tab="help">Help</button>
         <button type="button" class="tab" data-tab="about">About</button>
       </div>
@@ -204,6 +209,18 @@
         <div class="settings-meta muted small" id="accessInfo"></div>
       </div>
 
+      <!-- Config -->
+      <div class="tab-panel" data-panel="config">
+        <p class="muted small">The runtime configuration this instance was started with.</p>
+        <div id="configList" class="config-list"></div>
+        <div class="config-qr">
+          <span class="field-head">Access QR</span>
+          <p class="muted small">Scan from another device on this network to open the UI
+             (the code embeds the access key, so it signs in automatically).</p>
+          <img id="configQr" class="config-qr-img" alt="Access QR code" />
+        </div>
+      </div>
+
       <!-- About -->
       <div class="tab-panel" data-panel="about">
         <div class="about">
@@ -237,6 +254,8 @@
                 Plan → Bypass.</li>
             <li><b>In-private</b> — start a session that stays out of the list; minimize it with ▁
                 and restore it from the pill in the corner.</li>
+            <li><b>Terminal</b> — with <code>--commands-allowed</code>, the &gt;_ button opens a
+                terminal that runs shell commands in the open session's folder (cmd on Windows, sh elsewhere).</li>
             <li><b>Appearance</b> — switch color scheme, light/dark, and hand-tune colors here.
                 All saved in this browser.</li>
           </ul>
@@ -246,7 +265,10 @@
              <code title="Serve without a password (open access on your LAN).">--no-pass</code>,
              <code title="Allow new sessions in any folder, not just existing projects.">--free-style</code>,
              <code title="Don't read past sessions/transcripts from disk.">--no-history</code>,
-             <code title="Port to serve the web UI on (default 8787).">--port &lt;n&gt;</code>,
+             <code title="Enable the in-browser terminal (runs shell commands in the session folder).">--commands-allowed</code>,
+             <code title="Don't print the ASCII-art logo at startup.">--no-logo</code>,
+             <code title="Enable framework logging output (suppressed by default).">--logs</code>,
+             <code title="Port to serve the web UI on (default 8787).">-p, --port &lt;n&gt;</code>,
              <code title="Show CLI help.">--help</code>.</p>
         </div>
       </div>
@@ -266,6 +288,21 @@
         <button value="cancel" class="btn btn-secondary" type="submit" formnovalidate>Cancel</button>
         <button value="ok" class="btn btn-primary" type="submit">Save</button>
       </div>
+    </form>
+  </dialog>
+
+  <!-- Terminal -->
+  <dialog id="terminalDialog" class="dialog terminal-modal">
+    <div class="dialog-head">
+      <h2>Terminal</h2>
+      <button type="button" class="icon-btn" id="terminalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="term-cwd muted small" id="termCwd"></div>
+    <pre class="term-out" id="termOut"></pre>
+    <form id="terminalForm" class="term-form">
+      <span class="term-prompt">$</span>
+      <input id="termInput" class="term-input" placeholder="Run a command…" autocomplete="off" spellcheck="false" />
+      <button class="btn btn-primary btn-sm" id="termRun" type="submit">Run</button>
     </form>
   </dialog>
 
