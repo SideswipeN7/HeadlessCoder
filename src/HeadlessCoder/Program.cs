@@ -12,6 +12,7 @@ using HeadlessCoder.Networking;
 using HeadlessCoder.Platform;
 using HeadlessCoder.Terminal;
 using Microsoft.AspNetCore.Http.Features;
+using QRCoder;
 
 var options = CommandLineOptions.Parse(args);
 if (options.ShowHelp)
@@ -20,6 +21,8 @@ if (options.ShowHelp)
     return;
 }
 
+if (!options.NoLogo)
+    ConsoleUi.PrintLogo();
 ConsoleUi.PrintBanner();
 
 // Fail fast (with a friendly message) if the port is already taken.
@@ -37,8 +40,16 @@ string password = authEnabled
     : "";
 string authToken = authEnabled ? Guid.NewGuid().ToString("N") : "";
 
+// LAN URL + QR content are needed by the startup banner and the /api/qr + /api/config
+// endpoints, so resolve them once up front. The QR embeds the access key so a scan signs in.
+string host = options.AdvertiseHost ?? NetworkHelper.GetLanIpv4();
+string url = $"http://{host}:{options.Port}";
+string qrContent = authEnabled ? $"{url}/?key={Uri.EscapeDataString(password)}" : url;
+
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args });
-builder.Logging.ClearProviders();
+// Logging is suppressed by default so the console stays clean; --logs re-enables it.
+if (!options.Logs)
+    builder.Logging.ClearProviders();
 builder.WebHost.UseUrls($"http://{options.BindAddress}:{options.Port}");
 
 // Agent providers + registry.
@@ -65,7 +76,7 @@ var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 // About / update-check.
 const string ghRepo = "SideswipeN7/HeadlessCoder";
 string appVersion = Assembly.GetExecutingAssembly().GetName().Version is { } ver
-    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.0.4";
+    ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "0.0.5";
 var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
 // ---- Access control ----------------------------------------------------------
@@ -141,6 +152,29 @@ app.MapGet("/api/health", (AgentRegistry reg) => Results.Json(new
     noHistory = options.NoHistory,
     commandsAllowed = options.CommandsAllowed,
 }, jsonOpts));
+
+// The effective runtime configuration, for the Settings → Config panel.
+app.MapGet("/api/config", () => Results.Json(new
+{
+    url,
+    port = options.Port,
+    bind = options.BindAddress,
+    host,
+    auth = authEnabled,
+    noSleep = options.NoSleep,
+    freeStyle = options.FreeStyle,
+    noHistory = options.NoHistory,
+    commandsAllowed = options.CommandsAllowed,
+}, jsonOpts));
+
+// The access QR as a PNG (same content as the console QR: URL + embedded key).
+app.MapGet("/api/qr", () =>
+{
+    using var gen = new QRCodeGenerator();
+    using var data = gen.CreateQrCode(qrContent, QRCodeGenerator.ECCLevel.M);
+    byte[] png = new PngByteQRCode(data).GetGraphic(10);
+    return Results.Bytes(png, "image/png");
+});
 
 // About: version + repo.
 app.MapGet("/api/about", () => Results.Json(new
@@ -391,11 +425,6 @@ app.MapPost("/api/terminal", async (HttpContext ctx, CommandRunner runner) =>
 
 var registry = app.Services.GetRequiredService<AgentRegistry>();
 DoctorReport doctor = registry.Diagnose();
-
-string host = options.AdvertiseHost ?? NetworkHelper.GetLanIpv4();
-string url = $"http://{host}:{options.Port}";
-// The QR embeds the access key so scanning signs you in automatically.
-string qrContent = authEnabled ? $"{url}/?key={Uri.EscapeDataString(password)}" : url;
 
 SleepPreventer? sleep = options.NoSleep ? SleepPreventer.Start() : null;
 app.Lifetime.ApplicationStopping.Register(() => sleep?.Dispose());

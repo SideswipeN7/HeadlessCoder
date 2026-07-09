@@ -205,6 +205,7 @@
       <div class="tabs" id="settingsTabs">
         <button type="button" class="tab active" data-tab="appearance">Appearance</button>
         <button type="button" class="tab" data-tab="agents">Agents</button>
+        <button type="button" class="tab" data-tab="config">Config</button>
         <button type="button" class="tab" data-tab="help">Help</button>
         <button type="button" class="tab" data-tab="about">About</button>
       </div>
@@ -246,6 +247,18 @@
         </div>
         <div id="agentsList" class="agents-list"></div>
         <div class="settings-meta muted small" id="accessInfo"></div>
+      </div>
+
+      <!-- Config -->
+      <div class="tab-panel" data-panel="config">
+        <p class="muted small">The runtime configuration this instance was started with.</p>
+        <div id="configList" class="config-list"></div>
+        <div class="config-qr">
+          <span class="field-head">Access QR</span>
+          <p class="muted small">Scan from another device on this network to open the UI
+             (the code embeds the access key, so it signs in automatically).</p>
+          <img id="configQr" class="config-qr-img" alt="Access QR code" />
+        </div>
       </div>
 
       <!-- About -->

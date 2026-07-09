@@ -129,9 +129,42 @@ function openSettings(tab) {
   populateCustomFields();
   renderAgentsList();
   renderAccessInfo();
+  renderConfig();
   renderAbout();
   if (tab) switchTab(tab); else switchTab("appearance");
   $("settingsDialog").showModal();
+}
+
+// ---- Config panel (effective runtime config + access QR) -------------------
+async function renderConfig() {
+  const list = $("configList");
+  // Point the QR image at the server; add a cache-buster so re-opening refetches.
+  $("configQr").src = "/api/qr?t=" + Date.now();
+  try {
+    const c = await (await fetch("/api/config")).json();
+    const rows = [
+      ["URL", c.url],
+      ["Port", c.port],
+      ["Bind", c.bind],
+      ["Advertised host", c.host],
+      ["Access", c.auth ? "🔒 password" : "🔓 open (--no-pass)"],
+      ["Keep-awake", c.noSleep ? "on (--no-sleep)" : "off"],
+      ["New sessions", c.freeStyle ? "any folder (--free-style)" : "existing projects only"],
+      ["History", c.noHistory ? "off (--no-history)" : "on"],
+      ["Terminal", c.commandsAllowed ? "enabled (--commands-allowed)" : "disabled"],
+    ];
+    list.innerHTML = "";
+    for (const [k, v] of rows) {
+      const row = document.createElement("div");
+      row.className = "config-row";
+      row.innerHTML = `<span class="config-key"></span><span class="config-val"></span>`;
+      row.querySelector(".config-key").textContent = k;
+      row.querySelector(".config-val").textContent = v;
+      list.appendChild(row);
+    }
+  } catch {
+    list.innerHTML = `<div class="muted small">Failed to load config.</div>`;
+  }
 }
 
 // ---- About / updates -------------------------------------------------------
