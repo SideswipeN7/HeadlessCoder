@@ -29,6 +29,9 @@ public sealed class CommandLineOptions
     /// <summary>When true, do not read past sessions/transcripts from disk.</summary>
     public bool NoHistory { get; init; }
 
+    /// <summary>When true, expose an in-browser terminal for running arbitrary shell commands.</summary>
+    public bool CommandsAllowed { get; init; }
+
     public bool ShowHelp { get; init; }
 
     public static CommandLineOptions Parse(string[] args)
@@ -39,6 +42,7 @@ public sealed class CommandLineOptions
         bool noPass = false;
         bool freeStyle = false;
         bool noHistory = false;
+        bool commandsAllowed = false;
         string bind = "0.0.0.0";
         string? advertise = null;
         string? password = null;
@@ -62,6 +66,10 @@ public sealed class CommandLineOptions
                     break;
                 case "--no-history":
                     noHistory = true;
+                    break;
+                case "-ca":
+                case "--commands-allowed":
+                    commandsAllowed = true;
                     break;
                 case "-h":
                 case "-?":
@@ -110,12 +118,13 @@ public sealed class CommandLineOptions
             Password = password,
             FreeStyle = freeStyle,
             NoHistory = noHistory,
+            CommandsAllowed = commandsAllowed,
         };
     }
 
     public static string HelpText =>
         """
-        HeadlessCoder - manage your coding-agent CLIs (Claude Code, Gemini, Copilot) from
+        HeadlessCoder - manage your coding-agent CLIs (Claude Code, Antigravity, Copilot) from
         your phone or any device on your LAN.
 
         Usage:
@@ -127,6 +136,8 @@ public sealed class CommandLineOptions
               --pass <value>  Protect access with your own password.
           -fs, --free-style   Allow new sessions in ANY folder (not just existing projects).
               --no-history    Do not read past sessions/transcripts from disk.
+          -ca, --commands-allowed
+                              Show an in-browser terminal to run shell commands (use with care).
               --port <n>      Port to serve the web UI on (default: 8787).
               --bind <addr>   Address Kestrel binds to (default: 0.0.0.0 = all interfaces).
               --host <ip>     LAN IP to advertise in the printed URL/QR (auto-detected otherwise).

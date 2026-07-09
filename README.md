@@ -4,7 +4,7 @@
 
 <h1 align="center">HeadlessCoder</h1>
 
-Drive your coding-agent CLIs — **Claude Code**, **Gemini CLI**, **Copilot CLI** — from your
+Drive your coding-agent CLIs — **Claude Code**, **Antigravity CLI**, **Copilot CLI** — from your
 phone, or any device on your LAN.
 
 HeadlessCoder runs on the machine where your agent CLIs live, serves a small web UI, and
@@ -19,8 +19,8 @@ streaming responses.
 
   Preflight — agent CLIs on this machine:
     ✓ Claude Code — 2.1.198 (Claude Code)  ·  14 sessions
-    ○ Gemini CLI — not installed
-        ↳ Install with `npm install -g @google/gemini-cli`, then run `gemini` once to authenticate.
+    ○ Antigravity CLI — not installed
+        ↳ Install the Antigravity CLI (`agy`) from https://antigravity.google, then run `agy` once to authenticate.
     ○ Copilot CLI — not installed
         ↳ Install with `npm install -g @github/copilot`, then run `copilot` once and `/login`.
 
@@ -36,7 +36,7 @@ streaming responses.
 
 - **Multi-agent.** Provider abstraction over multiple agent CLIs. Detects each one and
   routes messages to it. Claude Code is fully wired (history + resume + streaming + tools);
-  Gemini/Copilot run as one-shot headless prompts with streamed output.
+  Antigravity/Copilot run as one-shot headless prompts with streamed output.
 - **Startup preflight / doctor.** Reports which agent CLIs are installed, their versions and
   session counts, and precise remediation for anything missing — in the console *and* the UI.
 - **All your sessions, everywhere.** Reads Claude Code's on-disk transcripts
@@ -76,13 +76,13 @@ streaming responses.
 | Agent | Detect | History / resume | Send message |
 |-------|:------:|:----------------:|--------------|
 | **Claude Code** (`claude`) | ✅ | ✅ reads `~/.claude/projects`, resumes by id | ✅ `claude --print --output-format stream-json` |
-| **Gemini CLI** (`gemini`) | ✅ | — | ✅ one-shot `gemini --prompt` |
+| **Antigravity CLI** (`agy`) | ✅ | — | ✅ one-shot `agy --prompt` |
 | **Copilot CLI** (`copilot`) | ✅ | — | ✅ one-shot `copilot --prompt` |
 | **Codex CLI** (`codex`) | ✅ | — | ✅ one-shot `codex exec` |
 | **opencode** (`opencode`) | ✅ | — | ✅ one-shot `opencode run` |
 | **Cursor Agent** (`cursor-agent`) | ✅ | — | ✅ one-shot `cursor-agent -p` |
 | **Aider** (`aider`) | ✅ | — | ✅ one-shot `aider --message` |
-| **Qwen Code** (`qwen`) | ✅ | — | ✅ one-shot `qwen --prompt` |
+| **Qwen Code** (`qwen`) | ✅ | ✅ reads `~/.qwen/tmp/*/chats` | ✅ one-shot `qwen --prompt` |
 
 Detection is verified for all; Claude is fully wired end-to-end. The other CLIs run as
 one-shot headless prompts with stdout streamed to the UI — their exact flags are best-effort
@@ -234,7 +234,7 @@ git push origin v1.0.0
  │  web UI   │ ───────────► │  HeadlessCoder (ASP.NET Core)      │
  │  (root)   │ ◄─────────── │   AgentRegistry                    │
  └───────────┘  normalized  │    ├─ ClaudeProvider  ── claude    │
-                  events     │    ├─ GeminiProvider  ── gemini    │
+                  events     │    ├─ AntigravityProvider ─ agy     │
                             │    └─ CopilotProvider ── copilot   │
                             └───────────────┬───────────────────┘
                                             ▼
@@ -285,7 +285,7 @@ src/HeadlessCoder/
     Cli.cs                   # locate executables, probe versions
     ClaudeProvider.cs        # full Claude Code backend (maps stream-json)
     GenericCliProvider.cs    # base for one-shot prompt CLIs
-    GeminiProvider.cs        # Gemini CLI
+    AntigravityProvider.cs   # Antigravity CLI (agy)
     CopilotProvider.cs       # Copilot CLI
   Claude/
     ClaudeSessionStore.cs    # read/parse ~/.claude/projects transcripts

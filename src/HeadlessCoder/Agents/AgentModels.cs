@@ -39,7 +39,7 @@ public sealed class AgentEvent
 /// </summary>
 public sealed class AgentDescriptor
 {
-    public required string Id { get; init; }          // "claude" | "gemini" | "copilot"
+    public required string Id { get; init; }          // "claude" | "antigravity" | "copilot"
     public required string DisplayName { get; init; }
 
     public bool Installed { get; set; }

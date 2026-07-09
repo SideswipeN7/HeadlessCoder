@@ -28,6 +28,13 @@ window.addEventListener("DOMContentLoaded", () => {
   $("sendBtn").addEventListener("click", send);
   $("input").addEventListener("keydown", onInputKey);
   $("input").addEventListener("input", autoGrow);
+  $("expandBtn").addEventListener("click", toggleExpand);
+  $("terminalBtn").addEventListener("click", toggleTerminal);
+  $("terminalForm").addEventListener("submit", runTerminalCommand);
+  $("terminalMinBtn").addEventListener("click", (e) => { e.stopPropagation(); minimizeTerminal(); });
+  $("terminalCloseBtn").addEventListener("click", (e) => { e.stopPropagation(); $("terminalWindow").hidden = true; });
+  $("terminalClearBtn").addEventListener("click", (e) => { e.stopPropagation(); $("terminalOutput").innerHTML = ""; });
+  $("terminalHead").addEventListener("click", restoreTerminal);
   $("newForm").addEventListener("submit", onNewSubmit);
 
   for (const seg of document.querySelectorAll("#groupToggle .seg")) {
@@ -63,6 +70,9 @@ window.addEventListener("DOMContentLoaded", () => {
 async function loadConfig() {
   try { state.config = await (await fetch("/api/health")).json(); }
   catch { state.config = {}; }
+  // Reveal the terminal button only when the server allows commands.
+  const tbtn = $("terminalBtn");
+  if (tbtn) tbtn.hidden = !(state.config && state.config.commandsAllowed);
 }
 
 // ---- Settings tabs ---------------------------------------------------------
@@ -736,8 +746,99 @@ function cyclePermMode() {
 }
 function autoGrow() {
   const el = $("input");
+  const expanded = $("composer").classList.contains("expanded");
+  const max = expanded ? Math.round(window.innerHeight * 0.5) : 200;
   el.style.height = "auto";
-  el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  el.style.height = Math.min(el.scrollHeight, max) + "px";
+}
+
+// Toggle the composer between the compact one-line box and a taller ~5-line box.
+function toggleExpand() {
+  const c = $("composer");
+  const expanded = c.classList.toggle("expanded");
+  const btn = $("expandBtn");
+  btn.textContent = expanded ? "⤡" : "⤢";
+  btn.title = expanded ? "Shrink input" : "Expand input (5 lines)";
+  autoGrow();
+  $("input").focus();
+}
+
+// ---- Terminal (only available when server started with --commands-allowed) --
+function toggleTerminal() {
+  const w = $("terminalWindow");
+  if (w.hidden) {
+    w.hidden = false;
+    w.classList.remove("minimized");
+    $("terminalInput").focus();
+  } else {
+    w.hidden = true;
+  }
+}
+function minimizeTerminal() { $("terminalWindow").classList.add("minimized"); }
+function restoreTerminal() {
+  const w = $("terminalWindow");
+  if (w.classList.contains("minimized")) {
+    w.classList.remove("minimized");
+    $("terminalInput").focus();
+  }
+}
+function termAppend(text, cls) {
+  const out = $("terminalOutput");
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = text;
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+}
+async function runTerminalCommand(e) {
+  if (e) e.preventDefault();
+  if (state.termBusy) return;
+  const input = $("terminalInput");
+  const cmd = input.value.trim();
+  if (!cmd) return;
+  input.value = "";
+  termAppend("$ " + cmd, "t-cmd");
+  state.termBusy = true;
+  try {
+    const resp = await fetch("/api/terminal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: cmd, cwd: (state.current && state.current.cwd) || "" }),
+    });
+    if (resp.status === 403) { termAppend("Terminal is disabled on the server.", "t-err"); return; }
+    if (!resp.ok || !resp.body) { termAppend("HTTP " + resp.status, "t-err"); return; }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        handleTermSse(buf.slice(0, idx));
+        buf = buf.slice(idx + 2);
+      }
+    }
+  } catch (err) {
+    termAppend(String(err && err.message ? err.message : err), "t-err");
+  } finally {
+    state.termBusy = false;
+    $("terminalInput").focus();
+  }
+}
+function handleTermSse(frame) {
+  let event = "line";
+  const dataLines = [];
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+  }
+  if (event !== "line") return;
+  let obj;
+  try { obj = JSON.parse(dataLines.join("\n")); } catch { return; }
+  if (obj.kind === "exit") termAppend(`[exit ${obj.text}]`, "t-exit");
+  else termAppend(obj.text, obj.kind === "stderr" ? "t-err" : null);
 }
 
 async function send() {
@@ -862,7 +963,10 @@ function dispatchAgentEvent(ev) {
 function addUserBubble(text) {
   const d = document.createElement("div");
   d.className = "msg msg-user";
-  d.textContent = text;
+  const body = document.createElement("div");
+  body.className = "md";
+  body.innerHTML = renderMarkdown(text);   // format the user's text (e.g. "* " → bullet list)
+  d.appendChild(body);
   $("transcript").appendChild(d);
 }
 function addAssistantBubble(text) {

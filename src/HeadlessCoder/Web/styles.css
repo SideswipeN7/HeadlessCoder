@@ -245,7 +245,7 @@ body {
   border: 1px solid var(--hairline-soft);
 }
 .agent-badge.claude { color: var(--primary); }
-.agent-badge.gemini { color: var(--accent-teal); }
+.agent-badge.antigravity { color: var(--accent-teal); }
 .agent-badge.copilot { color: var(--muted); }
 
 /* ---- Main / chat -------------------------------------------------------- */
@@ -310,6 +310,9 @@ body {
   flex-direction: column;
   gap: 18px;
 }
+/* Keep transcript items at their natural height — without this the flex column
+   squeezes them (a collapsed tool card shrinks to a thin bar) instead of scrolling. */
+.transcript > * { flex-shrink: 0; }
 
 .welcome { margin: auto; max-width: 460px; text-align: center; padding: 40px 20px; }
 .welcome-mark { font-size: 34px; color: var(--primary); margin-bottom: 12px; }
@@ -458,7 +461,7 @@ body {
 .composer-row { display: flex; gap: 10px; align-items: flex-end; }
 #input {
   flex: 1;
-  resize: none;
+  resize: vertical;            /* let the user drag the input taller */
   font: inherit;
   font-size: 15px;
   line-height: 1.5;
@@ -475,6 +478,10 @@ body {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
+/* Expanded composer: show ~5 lines by default and allow growing up to half the viewport. */
+.composer.expanded #input { min-height: 132px; max-height: 50vh; }
+.expand-btn { height: 44px; width: 44px; }
+.composer.expanded .expand-btn { color: var(--primary); border-color: var(--primary); }
 
 /* ---- Buttons ------------------------------------------------------------ */
 .btn {
@@ -730,4 +737,61 @@ body {
   .chat-title { font-size: 18px; }
   .cwd-chip { max-width: 100%; margin-left: 0; }
   .custom-grid { grid-template-columns: 1fr; }
+  .terminal-window { right: 10px; bottom: 10px; left: 10px; width: auto; }
 }
+
+/* ---- In-browser terminal (--commands-allowed) --------------------------- */
+.terminal-window {
+  position: fixed;
+  right: 20px; bottom: 20px;
+  width: min(660px, calc(100vw - 40px));
+  height: min(400px, calc(100vh - 40px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-dark);
+  color: var(--on-dark);
+  border: 1px solid var(--surface-dark-elevated);
+  border-radius: var(--r-lg);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.4);
+  z-index: 60;
+  overflow: hidden;
+}
+.terminal-window.minimized { height: auto; }
+.terminal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--surface-dark-elevated);
+  flex: none;
+  cursor: pointer;      /* click the bar to restore when minimized */
+}
+.terminal-title { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+.terminal-head-actions { display: flex; gap: 2px; }
+.terminal-hbtn {
+  border: none; background: none; color: var(--on-dark-soft);
+  cursor: pointer; font-size: 13px; line-height: 1;
+  width: 26px; height: 26px; border-radius: var(--r-md);
+}
+.terminal-hbtn:hover { background: var(--surface-dark-soft); color: var(--on-dark); }
+.terminal-window.minimized .terminal-body { display: none; }
+.terminal-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.terminal-output {
+  flex: 1; overflow-y: auto;
+  padding: 10px 12px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+  color: var(--on-dark-soft);
+}
+.terminal-output .t-cmd { color: var(--accent-teal); font-weight: 600; margin-top: 4px; }
+.terminal-output .t-err { color: var(--error); }
+.terminal-output .t-exit { color: var(--on-dark-soft); opacity: 0.7; font-style: italic; }
+.terminal-input-row {
+  display: flex; align-items: center; gap: 8px;
+  border-top: 1px solid var(--surface-dark-elevated);
+  padding: 9px 12px; flex: none;
+}
+.terminal-prompt { font-family: var(--mono); color: var(--accent-teal); }
+#terminalInput {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--on-dark); font-family: var(--mono); font-size: 12.5px;
+}
+#terminalInput::placeholder { color: var(--on-dark-soft); opacity: 0.6; }

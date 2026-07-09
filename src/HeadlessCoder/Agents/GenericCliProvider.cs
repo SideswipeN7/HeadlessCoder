@@ -16,7 +16,7 @@ public abstract class GenericCliProvider : IAgentProvider
     public abstract string Id { get; }
     public abstract string DisplayName { get; }
 
-    /// <summary>Base executable name to locate (e.g. "gemini").</summary>
+    /// <summary>Base executable name to locate (e.g. "agy").</summary>
     protected abstract string ExecutableName { get; }
 
     /// <summary>Config directory whose presence hints the CLI has been set up.</summary>
@@ -30,23 +30,33 @@ public abstract class GenericCliProvider : IAgentProvider
 
     protected virtual string VersionArg => "--version";
 
+    /// <summary>
+    /// Optional reader for this CLI's past sessions. Subclasses whose on-disk
+    /// transcript format we understand return a store; the default is none.
+    /// </summary>
+    protected virtual ICliHistoryStore? HistoryStore => null;
+
     public AgentDescriptor Detect()
     {
         string? exe = Cli.Locate(ExecutableName);
         string? cfg = ConfigDirectory;
         bool cfgFound = cfg is not null && Directory.Exists(cfg);
 
+        var store = HistoryStore;
+        bool hasHistory = store?.IsAvailable == true;
+        int sessionCount = hasHistory ? store!.ListSessions(Id).Count : 0;
+
         var d = new AgentDescriptor
         {
             Id = Id,
             DisplayName = DisplayName,
-            SupportsHistory = false,
+            SupportsHistory = hasHistory,
             SupportsResume = false,
             Installed = exe is not null,
             ExecutablePath = exe,
             ConfigFound = cfgFound,
-            SessionStorePath = cfg,
-            SessionCount = 0,
+            SessionStorePath = store?.StorePath ?? cfg,
+            SessionCount = sessionCount,
         };
         if (exe is not null)
             d.Version = Cli.ProbeVersion(exe, VersionArg);
@@ -55,10 +65,10 @@ public abstract class GenericCliProvider : IAgentProvider
         return d;
     }
 
-    // History is not supported for generic providers.
-    public IReadOnlyList<SessionSummary> ListSessions() => Array.Empty<SessionSummary>();
+    public IReadOnlyList<SessionSummary> ListSessions() =>
+        HistoryStore?.ListSessions(Id) ?? Array.Empty<SessionSummary>();
     public IReadOnlyList<TranscriptMessage> GetTranscript(string projectId, string sessionId) =>
-        Array.Empty<TranscriptMessage>();
+        HistoryStore?.GetTranscript(projectId, sessionId) ?? Array.Empty<TranscriptMessage>();
 
     public async IAsyncEnumerable<AgentEvent> SendAsync(
         SendMessageRequest request,

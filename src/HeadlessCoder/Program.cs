@@ -10,6 +10,7 @@ using HeadlessCoder.Claude;
 using HeadlessCoder.Hosting;
 using HeadlessCoder.Networking;
 using HeadlessCoder.Platform;
+using HeadlessCoder.Terminal;
 using Microsoft.AspNetCore.Http.Features;
 
 var options = CommandLineOptions.Parse(args);
@@ -45,7 +46,7 @@ builder.Services.AddSingleton<ClaudeSessionStore>(_ => new ClaudeSessionStore())
 builder.Services.AddSingleton<ClaudeCliRunner>(_ => new ClaudeCliRunner());
 builder.Services.AddSingleton<IAgentProvider>(sp =>
     new ClaudeProvider(sp.GetRequiredService<ClaudeSessionStore>(), sp.GetRequiredService<ClaudeCliRunner>()));
-builder.Services.AddSingleton<IAgentProvider, GeminiProvider>();
+builder.Services.AddSingleton<IAgentProvider, AntigravityProvider>();
 builder.Services.AddSingleton<IAgentProvider, CopilotProvider>();
 builder.Services.AddSingleton<IAgentProvider, CodexProvider>();
 builder.Services.AddSingleton<IAgentProvider, OpencodeProvider>();
@@ -56,6 +57,7 @@ builder.Services.AddSingleton<IAgentProvider, DeepSeekProvider>();
 builder.Services.AddSingleton<AgentRegistry>(sp =>
     new AgentRegistry(sp.GetServices<IAgentProvider>()));
 builder.Services.AddSingleton<SessionTitleStore>(_ => new SessionTitleStore());
+builder.Services.AddSingleton<CommandRunner>();
 
 var app = builder.Build();
 var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
@@ -137,6 +139,7 @@ app.MapGet("/api/health", (AgentRegistry reg) => Results.Json(new
     auth = authEnabled,
     freeStyle = options.FreeStyle,
     noHistory = options.NoHistory,
+    commandsAllowed = options.CommandsAllowed,
 }, jsonOpts));
 
 // About: version + repo.
@@ -291,6 +294,53 @@ app.MapPost("/api/message", async (HttpContext ctx, AgentRegistry reg) =>
     {
         await WriteSse(ctx, "agent",
             JsonSerializer.Serialize(AgentEvent.Error(ex.Message), jsonOpts));
+    }
+});
+
+// In-browser terminal — only mounted when the server is started with --commands-allowed.
+// Streams a single shell command's stdout/stderr line-by-line over SSE.
+app.MapPost("/api/terminal", async (HttpContext ctx, CommandRunner runner) =>
+{
+    if (!options.CommandsAllowed)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await ctx.Response.WriteAsync("terminal is disabled (start with --commands-allowed)");
+        return;
+    }
+
+    string command, cwd;
+    using (var doc = await JsonDocument.ParseAsync(ctx.Request.Body, cancellationToken: ctx.RequestAborted))
+    {
+        command = doc.RootElement.TryGetProperty("command", out var c) ? c.GetString() ?? "" : "";
+        cwd = doc.RootElement.TryGetProperty("cwd", out var w) ? w.GetString() ?? "" : "";
+    }
+    if (string.IsNullOrWhiteSpace(command))
+    {
+        ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await ctx.Response.WriteAsync("command is required");
+        return;
+    }
+
+    ctx.Response.Headers.CacheControl = "no-cache";
+    ctx.Response.Headers.Connection = "keep-alive";
+    ctx.Response.ContentType = "text/event-stream";
+    ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+    try
+    {
+        await foreach (var line in runner.RunAsync(command, cwd, ctx.RequestAborted))
+            await WriteSse(ctx, "line",
+                JsonSerializer.Serialize(new { kind = line.Kind, text = line.Text }, jsonOpts));
+        await WriteSse(ctx, "done", "{}");
+    }
+    catch (OperationCanceledException)
+    {
+        // client disconnected
+    }
+    catch (Exception ex)
+    {
+        await WriteSse(ctx, "line",
+            JsonSerializer.Serialize(new { kind = "stderr", text = ex.Message }, jsonOpts));
     }
 });
 
