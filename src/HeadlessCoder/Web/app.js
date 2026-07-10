@@ -694,6 +694,7 @@ function purgePrivate(sess) {
 
 function clearMainView() {
   state.current = null;
+  state.liveEl = null;   // no active view -> no live bubble
   $("composer").hidden = true;
   updateSessionButtons();   // no session -> hide rename/share/minimize + badge
   $("chatTitle").textContent = "Select a session";
@@ -785,6 +786,7 @@ function showToast(msg) {
 
 async function loadTranscript(sess) {
   const t = $("transcript");
+  state.liveEl = null;   // the previous view's live bubble is being discarded; drop the stale pointer
   resetUsage();
   resetTerminalForSession();
   t.innerHTML = `<div class="empty muted">Loading transcript…</div>`;
@@ -997,6 +999,7 @@ function send() {
 
   state.queue = state.queue || [];
   state.queue.push({
+    owner: state.current,   // the session this message belongs to (may not be the active view later)
     text,
     images,
     permissionMode: $("permMode").value,
@@ -1014,26 +1017,27 @@ async function processQueue() {
   while (state.queue && state.queue.length) {
     const item = state.queue.shift();
     updateQueueIndicator();
+    const owner = item.owner || state.current;   // route to the session the message was composed in
     const paths = (item.images || []).map((im) => im.path).filter(Boolean);
     let message = item.text;
     if (paths.length)
       message += (message ? "\n\n" : "") + "Attached image(s):\n" + paths.join("\n");
 
     const body = {
-      provider: state.current.provider || "claude",
-      sessionId: state.current.id || null,   // resumes once the first turn assigns an id
-      cwd: state.current.cwd,
+      provider: owner.provider || "claude",
+      sessionId: owner.id || null,   // resumes once the first turn assigns an id
+      cwd: owner.cwd,
       message,
       permissionMode: item.permissionMode,
       model: item.model,
       effort: item.effort,
     };
     try {
-      await streamMessage(body);
+      await streamMessage(body, owner);
     } catch (e) {
-      addErrorLine(String(e && e.message ? e.message : e));
+      if (owner === state.current) addErrorLine(String(e && e.message ? e.message : e));
     }
-    endLive();
+    if (owner === state.current) endLive();
   }
   state.sending = false;
   setSending(false);
@@ -1114,7 +1118,8 @@ function renderAttachments() {
   });
 }
 
-async function streamMessage(body) {
+async function streamMessage(body, owner) {
+  owner = owner || state.current;
   const resp = await fetch("/api/message", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1131,13 +1136,13 @@ async function streamMessage(body) {
     buf += decoder.decode(value, { stream: true });
     let idx;
     while ((idx = buf.indexOf("\n\n")) >= 0) {
-      handleSse(buf.slice(0, idx));
+      handleSse(buf.slice(0, idx), owner);
       buf = buf.slice(idx + 2);
     }
   }
 }
 
-function handleSse(frame) {
+function handleSse(frame, owner) {
   let event = "agent";
   const dataLines = [];
   for (const line of frame.split("\n")) {
@@ -1145,32 +1150,41 @@ function handleSse(frame) {
     else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
   }
   const data = dataLines.join("\n");
+  const active = owner === state.current;   // is this stream's session the one on screen?
 
   if (event === "meta") {
     try {
       const meta = JSON.parse(data);
-      if (meta.sessionId && state.current) {
-        if (meta.isNew) state.current.id = meta.sessionId;
-        if (meta.provider) state.current.provider = meta.provider;
-        if (state.current.private) state.privateIds.add(meta.sessionId);
-        updateSessionButtons();   // reveal rename/share once the new session has an id
+      if (meta.sessionId && owner) {
+        // Update the owning session even when it's in the background, so resume works later.
+        if (meta.isNew) owner.id = meta.sessionId;
+        if (meta.provider) owner.provider = meta.provider;
+        if (owner.private) state.privateIds.add(meta.sessionId);
+        if (active) updateSessionButtons();   // reveal rename/share once the new session has an id
       }
     } catch { /* ignore */ }
     return;
   }
-  if (event === "done") { endLive(); return; }
+  if (event === "done") { if (active) endLive(); return; }
 
   // event === "agent": a normalized AgentEvent
   let ev;
   try { ev = JSON.parse(data); } catch { return; }
-  dispatchAgentEvent(ev);
+  dispatchAgentEvent(ev, owner);
 }
 
-function dispatchAgentEvent(ev) {
+function dispatchAgentEvent(ev, owner) {
+  // The session id can arrive mid-stream; record it on the owning session even in the
+  // background so a later resume targets the right session.
+  if (ev.kind === "system") {
+    if (ev.sessionId && owner) owner.id = ev.sessionId;
+    return;
+  }
+  // Everything below mutates the shared transcript/live element — only do so when this
+  // stream's session is the one currently on screen, otherwise its output leaks into
+  // whatever session the user switched to.
+  if (owner !== state.current) return;
   switch (ev.kind) {
-    case "system":
-      if (ev.sessionId && state.current) state.current.id = ev.sessionId;
-      break;
     case "text_delta":
       ensureLive().textContent += ev.text || "";
       scrollBottom();
