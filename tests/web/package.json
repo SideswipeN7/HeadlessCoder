@@ -1,0 +1,13 @@
+{
+  "name": "headlesscoder-web-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-side regression tests for the embedded web UI (src/HeadlessCoder/Web).",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}

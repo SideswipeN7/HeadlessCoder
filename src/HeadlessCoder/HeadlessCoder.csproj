@@ -22,6 +22,11 @@
     <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>
 
+  <!-- Expose internal helpers (e.g. ClaudeCliRunner arg normalizers) to the test project. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="HeadlessCoder.Tests" />
+  </ItemGroup>
+
   <!-- Web UI is embedded so the whole app ships as one self-contained binary. -->
   <ItemGroup>
     <EmbeddedResource Include="Web\**\*" />
