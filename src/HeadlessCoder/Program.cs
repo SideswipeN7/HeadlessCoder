@@ -1,7 +1,5 @@
 using System.Net;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using HeadlessCoder;
 using HeadlessCoder.Agents;
@@ -450,39 +448,13 @@ static IResult ServeAsset(string name)
         : Results.Bytes(asset.Value.Bytes, asset.Value.ContentType);
 }
 
-static async Task WriteSse(HttpContext ctx, string @event, string data)
-{
-    var sb = new StringBuilder();
-    sb.Append("event: ").Append(@event).Append('\n');
-    foreach (var l in data.Split('\n'))
-        sb.Append("data: ").Append(l).Append('\n');
-    sb.Append('\n');
-    await ctx.Response.WriteAsync(sb.ToString(), ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-}
+static Task WriteSse(HttpContext ctx, string @event, string data) =>
+    Sse.WriteAsync(ctx, @event, data);
 
 // True when the release tag (e.g. "v1.2.0") is a higher version than the running app.
-static bool IsNewer(string current, string? tag)
-{
-    if (string.IsNullOrWhiteSpace(tag)) return false;
-    string t = tag.TrimStart('v', 'V').Trim();
-    return Version.TryParse(Pad(current), out var cv) &&
-           Version.TryParse(Pad(t), out var lv) && lv > cv;
+static bool IsNewer(string current, string? tag) => VersionCheck.IsNewer(current, tag);
 
-    static string Pad(string v)
-    {
-        // Version.TryParse needs at least major.minor.
-        var parts = v.Split('-', '+')[0]; // drop pre-release / build metadata
-        return parts.Contains('.') ? parts : parts + ".0";
-    }
-}
-
-static bool FixedEquals(string a, string b)
-{
-    var ba = Encoding.UTF8.GetBytes(a);
-    var bb = Encoding.UTF8.GetBytes(b);
-    return ba.Length == bb.Length && CryptographicOperations.FixedTimeEquals(ba, bb);
-}
+static bool FixedEquals(string a, string b) => SecurityUtil.FixedEquals(a, b);
 
 static void AppendAuthCookie(HttpContext ctx, string token) =>
     ctx.Response.Cookies.Append("hc_auth", token, new CookieOptions

@@ -23,44 +23,7 @@ public sealed class ClaudeCliRunner
         SendMessageRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        var args = new List<string>
-        {
-            "--print", request.Message,
-            "--output-format", "stream-json",
-            "--include-partial-messages",
-            "--verbose",
-            "--permission-mode", NormalizePermissionMode(request.PermissionMode),
-        };
-
-        // The server assigns a fresh id for new sessions and flags IsNewSession so we
-        // know to create (--session-id) rather than resume (--resume) it.
-        bool isNew = request.IsNewSession || string.IsNullOrWhiteSpace(request.SessionId);
-        string sessionId = string.IsNullOrWhiteSpace(request.SessionId)
-            ? Guid.NewGuid().ToString()
-            : request.SessionId!;
-
-        if (isNew)
-        {
-            args.Add("--session-id");
-            args.Add(sessionId);
-        }
-        else
-        {
-            args.Add("--resume");
-            args.Add(sessionId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Model))
-        {
-            args.Add("--model");
-            args.Add(request.Model!);
-        }
-
-        if (IsValidEffort(request.Effort))
-        {
-            args.Add("--effort");
-            args.Add(request.Effort!);
-        }
+        var args = BuildArgs(request);
 
         var psi = new ProcessStartInfo(_executable)
         {
@@ -116,10 +79,50 @@ public sealed class ClaudeCliRunner
         }
     }
 
-    private static bool IsValidEffort(string? effort) => effort is
+    /// <summary>
+    /// Builds the <c>claude</c> CLI argument list for a message. Extracted so the exact
+    /// invocation (headless streaming flags, new-vs-resume, model/effort) can be unit-tested.
+    /// </summary>
+    public static IReadOnlyList<string> BuildArgs(SendMessageRequest request)
+    {
+        var args = new List<string>
+        {
+            "--print", request.Message,
+            "--output-format", "stream-json",
+            "--include-partial-messages",
+            "--verbose",
+            "--permission-mode", NormalizePermissionMode(request.PermissionMode),
+        };
+
+        // The server assigns a fresh id for new sessions and flags IsNewSession so we
+        // know to create (--session-id) rather than resume (--resume) it.
+        bool isNew = request.IsNewSession || string.IsNullOrWhiteSpace(request.SessionId);
+        string sessionId = string.IsNullOrWhiteSpace(request.SessionId)
+            ? Guid.NewGuid().ToString()
+            : request.SessionId!;
+
+        args.Add(isNew ? "--session-id" : "--resume");
+        args.Add(sessionId);
+
+        if (!string.IsNullOrWhiteSpace(request.Model))
+        {
+            args.Add("--model");
+            args.Add(request.Model!);
+        }
+
+        if (IsValidEffort(request.Effort))
+        {
+            args.Add("--effort");
+            args.Add(request.Effort!);
+        }
+
+        return args;
+    }
+
+    internal static bool IsValidEffort(string? effort) => effort is
         "low" or "medium" or "high" or "xhigh" or "max";
 
-    private static string NormalizePermissionMode(string mode) => mode switch
+    internal static string NormalizePermissionMode(string mode) => mode switch
     {
         "acceptEdits" or "plan" or "bypassPermissions" or "default" => mode,
         _ => "default",
@@ -158,6 +161,6 @@ public sealed class ClaudeCliRunner
         return exeName;
     }
 
-    private static string JsonEscape(string s) =>
+    internal static string JsonEscape(string s) =>
         s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "");
 }

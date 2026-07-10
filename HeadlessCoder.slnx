@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HeadlessCoder/HeadlessCoder.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HeadlessCoder.Tests/HeadlessCoder.Tests.csproj" />
+  </Folder>
+</Solution>
